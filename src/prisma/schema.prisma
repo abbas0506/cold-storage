@@ -7,20 +7,26 @@ datasource db {
   provider = "postgres"
 }
 
+enum UserRole {
+  ADMIN
+  EMPLOYEE
+}
 
-model Owner {
-  ownerId    Int      @id @default(autoincrement())
-  fullName   String
-  phone      String   @unique
-  cnic       String?  @unique
-  email      String?  @unique
-  address    String?
-  ntn        String?  // National Tax Number
-  strn    String?  // Sales Tax Registration Number
-  
-  createdAt  DateTime @default(now())
+model User{
+  id Int @id @default(autoincrement())
+  username String @unique
+  password String
+  lastLogin DateTime?
+  fcmToken String?
+  role UserRole @default(EMPLOYEE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
-  stores     ColdStore[]
+model Settings{
+  id Int @id @default(autoincrement())
+  key String
+  value String
 }
 
 
@@ -30,20 +36,17 @@ model ColdStore {
   city       String?
   address    String?
   phone      String?
-  ownerId    Int
   createdAt  DateTime @default(now())
 
-  owner      Owner    @relation(fields: [ownerId], references: [ownerId], onDelete: Cascade)
-  floors      Floor[]
+  rooms       Room[]
   ratePlans  RatePlan[]
   employees  Employee[]
   
 }
-
-model Floor {
-  floorId        Int      @id @default(autoincrement())
-  storeId        Int
-  floorName      String
+model Room {
+  roomId        Int      @id @default(autoincrement())
+  storeId       Int
+  roomName      String
   temperatureMin Float?
   temperatureMax Float?
   isActive       Boolean  @default(true)
@@ -54,11 +57,12 @@ model Floor {
 
 model Rack {
   rackId      Int      @id @default(autoincrement())
-  floorId     Int
-  rackName    String
+  roomId      Int?
+  floor       String
+  rackName    String   //will be derive from floor and row + Left/Right
   capacity    Int?
-  floor       Floor    @relation(fields: [floorId], references: [floorId], onDelete: Cascade)
- }
+  room        Room?    @relation(fields: [roomId], references: [roomId], onDelete: SetNull)
+}
 
 model Farmer {
   farmerId   Int      @id @default(autoincrement())
@@ -70,8 +74,7 @@ model Farmer {
   createdAt  DateTime @default(now())
 
   contracts  StorageContract[]
-  
-  
+ 
 }
 
 model Item {
@@ -150,9 +153,11 @@ model StockMovement {
 model Invoice {
   invoiceId     Int       @id @default(autoincrement())
   contractId    Int
-  invoiceNumber String    @unique
   invoiceDate   DateTime  @default(now())
-  qrCode        String?   // For digital payments
+  fbrInvoiceCode        String?   // For digital payments
+  fbrQrCode        String?   // For digital payments
+  praInvoiceCode        String?   // For digital payments
+  praQrCode        String?   // For digital payments
   dueDate       DateTime?
   totalAmount   Float     @default(0) // Before tax
   salesTaxRate  Float     @default(0) // e.g., 16%
