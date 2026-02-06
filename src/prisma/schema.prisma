@@ -8,30 +8,21 @@ datasource db {
 }
 
 
-model Farmer {
-  farmerId   Int      @id @default(autoincrement())
-  fullName   String
-  phone      String   @unique
-  cnic       String?  @unique
-  address    String?
-  marka      String?  // For identifying farmer's product
-  createdAt  DateTime @default(now())
-
-  contracts  StorageContract[]
-  payments   Payment[]
-  taxRegistrations TaxRegistration[]
-}
-
 model Owner {
   ownerId    Int      @id @default(autoincrement())
   fullName   String
   phone      String   @unique
+  cnic       String?  @unique
   email      String?  @unique
   address    String?
+  ntn        String?  // National Tax Number
+  strn    String?  // Sales Tax Registration Number
+  
   createdAt  DateTime @default(now())
 
   stores     ColdStore[]
 }
+
 
 model ColdStore {
   storeId    Int      @id @default(autoincrement())
@@ -67,22 +58,36 @@ model Rack {
   rackName    String
   capacity    Int?
   floor       Floor    @relation(fields: [floorId], references: [floorId], onDelete: Cascade)
-  contracts   StorageContract[]
+ }
+
+model Farmer {
+  farmerId   Int      @id @default(autoincrement())
+  fullName   String
+  phone      String   @unique
+  cnic       String?  @unique
+  address    String?
+  marka      String?  // For identifying farmer's product
+  createdAt  DateTime @default(now())
+
+  contracts  StorageContract[]
+  
+  
 }
 
-model ItemCategory {
-  categoryId   Int     @id @default(autoincrement())
-  categoryName String  @unique
-  description  String?
+model Item {
+  itemId      Int     @id @default(autoincrement())
+  itemName    String
+  description String?
 
-  contracts    StorageContract[]
-  ratePlans    RatePlan[]
+  ratePlans   RatePlan[]
+  contractLines ContractLine[]
 }
 
 model RatePlan {
   rateId        Int      @id @default(autoincrement())
   storeId       Int
-  categoryId    Int?
+  itemId        Int?
+  packagingType PackagingType?
   rateType      RateType
   rateAmount    Float
   effectiveFrom DateTime
@@ -90,16 +95,12 @@ model RatePlan {
   createdAt     DateTime @default(now())
 
   store         ColdStore    @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
-  category      ItemCategory? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
-  contracts     StorageContract[]
-}
+  item          Item?        @relation(fields: [itemId], references: [itemId], onDelete: SetNull)
+  }
 
 model StorageContract {
   contractId      Int      @id @default(autoincrement())
   farmerId        Int
-  rackId          Int?
-  categoryId      Int?
-  rateId          Int?
   contractCode    String   @unique
   startDate       DateTime
   expectedEndDate DateTime?
@@ -109,49 +110,41 @@ model StorageContract {
   createdAt       DateTime @default(now())
 
   farmer          Farmer        @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
-  rack            Rack?         @relation(fields: [rackId], references: [rackId], onDelete: SetNull)
-  category        ItemCategory? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
-  ratePlan        RatePlan?     @relation(fields: [rateId], references: [rateId], onDelete: SetNull)
-
-  items           ContractItem[]
-  movements       StockMovement[]
+  items           ContractLine[]
   invoices        Invoice[]
   logs            ContractLog[]
 
   @@index([farmerId])
-  @@index([rackId])
-  @@index([categoryId])
-  @@index([rateId])
+  
   }
 
-model ContractItem {
-  contractItemId   Int      @id @default(autoincrement())
+model ContractLine {
+  contractLineId   Int      @id @default(autoincrement())
   contractId       Int
-  itemName         String
+  itemId           Int?
   packagingType    PackagingType?
-  quantityPackages Int      @default(0)
-  weightKg         Float
-  qualityGrade     String?
+  quantity         Int?
+  unitRate         Float    @default(0)
+  lateCharges      Float    @default(0) // Charges for late pickup or storage beyond expected end date
   remarks          String?
 
+  item            Item?    @relation(fields: [itemId], references: [itemId], onDelete: SetNull)
   contract         StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
   movements        StockMovement[]
 }
 
 model StockMovement {
   movementId      Int      @id @default(autoincrement())
-  contractId      Int
-  contractItemId  Int?
+  contractLineId  Int?
   movementType    MovementType
+  rackId          Int?
+  quantity        Int      @default(0)
   movementDate    DateTime @default(now())
-  weightKg        Float
-  packages        Int      @default(0)
   referenceNote   String?
 
-  contract        StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
-  contractItem    ContractItem?   @relation(fields: [contractItemId], references: [contractItemId], onDelete: SetNull)
+  contractLine    ContractLine?   @relation(fields: [contractLineId], references: [contractLineId], onDelete: SetNull)
 
-  @@index([contractId])
+  @@index([contractLineId])
 }
 
 model Invoice {
@@ -159,6 +152,7 @@ model Invoice {
   contractId    Int
   invoiceNumber String    @unique
   invoiceDate   DateTime  @default(now())
+  qrCode        String?   // For digital payments
   dueDate       DateTime?
   totalAmount   Float     @default(0) // Before tax
   salesTaxRate  Float     @default(0) // e.g., 16%
@@ -178,9 +172,11 @@ model Invoice {
 model InvoiceLine {
   invoiceLineId Int      @id @default(autoincrement())
   invoiceId     Int
-  description   String
+  itemId        Int?
+  packagingType PackagingType?
   quantity      Float    @default(1)
-  unitPrice     Float    @default(0)
+  unitRate      Float    @default(0)
+  description   String
 
   invoice       Invoice @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
 }
@@ -188,7 +184,6 @@ model InvoiceLine {
 model Payment {
   paymentId       Int      @id @default(autoincrement())
   invoiceId       Int
-  farmerId        Int
   paymentDate     DateTime @default(now())
   amount          Float
   paymentMethod   PaymentMethod
@@ -196,11 +191,9 @@ model Payment {
   remarks         String?
 
   invoice         Invoice @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
-  farmer          Farmer  @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
-
+  
   @@index([invoiceId])
-  @@index([farmerId])
-}
+  }
 
 model Employee {
   employeeId  Int      @id @default(autoincrement())
@@ -266,18 +259,4 @@ enum PaymentMethod {
   CHEQUE
 }
 
-model TaxRegistration {
-  taxRegId       Int      @id @default(autoincrement())
-  entityName     String   // Name of business or farmer
-  farmerId       Int?     // link to farmer
-  ntn            String?  // FBR National Tax Number
-  isFbrRegistered Boolean @default(false)
-  isPraRegistered Boolean @default(false)
-  praStrn        String?  // Punjab sales tax registration number
-  registrationDate DateTime?
-  expiryDate      DateTime?
 
-  farmer          Farmer? @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
-
-  @@index([farmerId])
-}
