@@ -5,12 +5,279 @@ generator client {
 
 datasource db {
   provider = "postgres"
-  // url      = env("DATABASE_URL")
 }
 
-model Product {
-  id       Int      @id @default(autoincrement())
-  name     String
-  quantity Int
-  createdAt DateTime @default(now())
+
+model Farmer {
+  farmerId   Int      @id @default(autoincrement())
+  fullName   String
+  phone      String   @unique
+  cnic       String?  @unique
+  address    String?
+  marka      String?  // For identifying farmer's product
+  createdAt  DateTime @default(now())
+
+  contracts  StorageContract[]
+  payments   Payment[]
+  taxRegistrations TaxRegistration[]
+}
+
+model Owner {
+  ownerId    Int      @id @default(autoincrement())
+  fullName   String
+  phone      String   @unique
+  email      String?  @unique
+  address    String?
+  createdAt  DateTime @default(now())
+
+  stores     ColdStore[]
+}
+
+model ColdStore {
+  storeId    Int      @id @default(autoincrement())
+  storeName  String
+  city       String?
+  address    String?
+  phone      String?
+  ownerId    Int
+  createdAt  DateTime @default(now())
+
+  owner      Owner    @relation(fields: [ownerId], references: [ownerId], onDelete: Cascade)
+  floors      Floor[]
+  ratePlans  RatePlan[]
+  employees  Employee[]
+  
+}
+
+model Floor {
+  floorId        Int      @id @default(autoincrement())
+  storeId        Int
+  floorName      String
+  temperatureMin Float?
+  temperatureMax Float?
+  isActive       Boolean  @default(true)
+
+  store          ColdStore @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+  racks          Rack[]
+}
+
+model Rack {
+  rackId      Int      @id @default(autoincrement())
+  floorId     Int
+  rackName    String
+  capacity    Int?
+  floor       Floor    @relation(fields: [floorId], references: [floorId], onDelete: Cascade)
+  contracts   StorageContract[]
+}
+
+model ItemCategory {
+  categoryId   Int     @id @default(autoincrement())
+  categoryName String  @unique
+  description  String?
+
+  contracts    StorageContract[]
+  ratePlans    RatePlan[]
+}
+
+model RatePlan {
+  rateId        Int      @id @default(autoincrement())
+  storeId       Int
+  categoryId    Int?
+  rateType      RateType
+  rateAmount    Float
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime @default(now())
+
+  store         ColdStore    @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+  category      ItemCategory? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
+  contracts     StorageContract[]
+}
+
+model StorageContract {
+  contractId      Int      @id @default(autoincrement())
+  farmerId        Int
+  rackId          Int?
+  categoryId      Int?
+  rateId          Int?
+  contractCode    String   @unique
+  startDate       DateTime
+  expectedEndDate DateTime?
+  actualEndDate   DateTime?
+  status          ContractStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  farmer          Farmer        @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
+  rack            Rack?         @relation(fields: [rackId], references: [rackId], onDelete: SetNull)
+  category        ItemCategory? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
+  ratePlan        RatePlan?     @relation(fields: [rateId], references: [rateId], onDelete: SetNull)
+
+  items           ContractItem[]
+  movements       StockMovement[]
+  invoices        Invoice[]
+  logs            ContractLog[]
+
+  @@index([farmerId])
+  @@index([rackId])
+  @@index([categoryId])
+  @@index([rateId])
+  }
+
+model ContractItem {
+  contractItemId   Int      @id @default(autoincrement())
+  contractId       Int
+  itemName         String
+  packagingType    PackagingType?
+  quantityPackages Int      @default(0)
+  weightKg         Float
+  qualityGrade     String?
+  remarks          String?
+
+  contract         StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  movements        StockMovement[]
+}
+
+model StockMovement {
+  movementId      Int      @id @default(autoincrement())
+  contractId      Int
+  contractItemId  Int?
+  movementType    MovementType
+  movementDate    DateTime @default(now())
+  weightKg        Float
+  packages        Int      @default(0)
+  referenceNote   String?
+
+  contract        StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  contractItem    ContractItem?   @relation(fields: [contractItemId], references: [contractItemId], onDelete: SetNull)
+
+  @@index([contractId])
+}
+
+model Invoice {
+  invoiceId     Int       @id @default(autoincrement())
+  contractId    Int
+  invoiceNumber String    @unique
+  invoiceDate   DateTime  @default(now())
+  dueDate       DateTime?
+  totalAmount   Float     @default(0) // Before tax
+  salesTaxRate  Float     @default(0) // e.g., 16%
+  salesTaxAmount Float    @default(0) // Calculated: totalAmount * salesTaxRate/100
+
+  discount      Float     @default(0)
+  netAmount     Float     @default(0)  // totalAmount + salesTaxAmount – discount
+
+  status        InvoiceStatus @default(UNPAID)
+  createdAt     DateTime  @default(now())
+
+  contract      StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  lines         InvoiceLine[]
+  payments      Payment[]
+}
+
+model InvoiceLine {
+  invoiceLineId Int      @id @default(autoincrement())
+  invoiceId     Int
+  description   String
+  quantity      Float    @default(1)
+  unitPrice     Float    @default(0)
+
+  invoice       Invoice @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+}
+
+model Payment {
+  paymentId       Int      @id @default(autoincrement())
+  invoiceId       Int
+  farmerId        Int
+  paymentDate     DateTime @default(now())
+  amount          Float
+  paymentMethod   PaymentMethod
+  transactionRef  String?
+  remarks         String?
+
+  invoice         Invoice @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+  farmer          Farmer  @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([farmerId])
+}
+
+model Employee {
+  employeeId  Int      @id @default(autoincrement())
+  storeId     Int?
+  fullName    String
+  phone       String?  @unique
+  role        String?
+  salary      Float?
+  hiredDate   DateTime?
+  createdAt   DateTime @default(now())
+
+  store       ColdStore? @relation(fields: [storeId], references: [storeId], onDelete: SetNull)
+}
+
+model ContractLog {
+  logId       Int      @id @default(autoincrement())
+  contractId  Int
+  action      String
+  actionTime  DateTime @default(now())
+  performedBy String?
+  notes       String?
+
+  contract    StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+}
+
+enum RateType {
+  PER_BORI
+  PER_TORA
+  PER_CRATE
+  PER_DAY
+  PER_MONTH
+  FIXED
+}
+
+enum ContractStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PackagingType {
+  BORI
+  TORA
+  CRATE
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+  EASYPaisa
+  JAZZCASH
+  CHEQUE
+}
+
+model TaxRegistration {
+  taxRegId       Int      @id @default(autoincrement())
+  entityName     String   // Name of business or farmer
+  farmerId       Int?     // link to farmer
+  ntn            String?  // FBR National Tax Number
+  isFbrRegistered Boolean @default(false)
+  isPraRegistered Boolean @default(false)
+  praStrn        String?  // Punjab sales tax registration number
+  registrationDate DateTime?
+  expiryDate      DateTime?
+
+  farmer          Farmer? @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
+
+  @@index([farmerId])
 }
