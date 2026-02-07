@@ -13,59 +13,53 @@ enum UserRole {
 }
 
 model User{
-  id Int @id @default(autoincrement())
-  username String @unique
-  password String
+  id        Int @id @default(autoincrement())
+  username  String @unique
+  password  String
   lastLogin DateTime?
-  fcmToken String?
+  fcmToken  String?
   role UserRole @default(EMPLOYEE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Settings{
-  id Int @id @default(autoincrement())
-  key String
-  value String
+  id      Int @id @default(autoincrement())
+  key     String
+  value   String
 }
 
-
-model ColdStore {
-  storeId    Int      @id @default(autoincrement())
-  storeName  String
-  city       String?
-  address    String?
-  phone      String?
-  createdAt  DateTime @default(now())
-
-  rooms       Room[]
-  ratePlans  RatePlan[]
-  employees  Employee[]
-  
-}
 model Room {
-  roomId        Int      @id @default(autoincrement())
-  storeId       Int
-  roomName      String
-  temperatureMin Float?
-  temperatureMax Float?
-  isActive       Boolean  @default(true)
+  id              Int      @id @default(autoincrement())
+  roomName        String
+  capacity        Int?
+  temperatureMin  Float?
+  temperatureMax  Float?
+  isActive        Boolean  @default(true)
 
-  store          ColdStore @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
-  racks          Rack[]
+  floors          floor[]
+}
+
+model floor {
+  id              Int      @id @default(autoincrement())
+  floorName       String
+  description     String?
+  roomId          Int
+
+  racks           Rack[]
+  room            Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
 model Rack {
-  rackId      Int      @id @default(autoincrement())
-  roomId      Int?
-  floor       String
+  id          Int      @id @default(autoincrement())
+  floorId     Int
   rackName    String   //will be derive from floor and row + Left/Right
-  capacity    Int?
-  room        Room?    @relation(fields: [roomId], references: [roomId], onDelete: SetNull)
+    
+  floor       floor     @relation(fields: [floorId], references: [id], onDelete: Cascade)
 }
 
 model Farmer {
-  farmerId   Int      @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   fullName   String
   phone      String   @unique
   cnic       String?  @unique
@@ -78,7 +72,7 @@ model Farmer {
 }
 
 model Item {
-  itemId      Int     @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   itemName    String
   description String?
 
@@ -87,8 +81,7 @@ model Item {
 }
 
 model RatePlan {
-  rateId        Int      @id @default(autoincrement())
-  storeId       Int
+  id            Int      @id @default(autoincrement())
   itemId        Int?
   packagingType PackagingType?
   rateType      RateType
@@ -97,12 +90,11 @@ model RatePlan {
   effectiveTo   DateTime?
   createdAt     DateTime @default(now())
 
-  store         ColdStore    @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
-  item          Item?        @relation(fields: [itemId], references: [itemId], onDelete: SetNull)
+  item          Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
   }
 
 model StorageContract {
-  contractId      Int      @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   farmerId        Int
   contractCode    String   @unique
   startDate       DateTime
@@ -112,7 +104,7 @@ model StorageContract {
   notes           String?
   createdAt       DateTime @default(now())
 
-  farmer          Farmer        @relation(fields: [farmerId], references: [farmerId], onDelete: Cascade)
+  farmer          Farmer        @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   items           ContractLine[]
   invoices        Invoice[]
   logs            ContractLog[]
@@ -122,7 +114,7 @@ model StorageContract {
   }
 
 model ContractLine {
-  contractLineId   Int      @id @default(autoincrement())
+  id               Int      @id @default(autoincrement())
   contractId       Int
   itemId           Int?
   packagingType    PackagingType?
@@ -131,13 +123,13 @@ model ContractLine {
   lateCharges      Float    @default(0) // Charges for late pickup or storage beyond expected end date
   remarks          String?
 
-  item            Item?    @relation(fields: [itemId], references: [itemId], onDelete: SetNull)
-  contract         StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  item             Item?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  contract         StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   movements        StockMovement[]
 }
 
 model StockMovement {
-  movementId      Int      @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   contractLineId  Int?
   movementType    MovementType
   rackId          Int?
@@ -145,13 +137,13 @@ model StockMovement {
   movementDate    DateTime @default(now())
   referenceNote   String?
 
-  contractLine    ContractLine?   @relation(fields: [contractLineId], references: [contractLineId], onDelete: SetNull)
+  contractLine    ContractLine?   @relation(fields: [contractLineId], references: [id], onDelete: SetNull)
 
   @@index([contractLineId])
 }
 
 model Invoice {
-  invoiceId     Int       @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   contractId    Int
   invoiceDate   DateTime  @default(now())
   fbrInvoiceCode        String?   // For digital payments
@@ -169,13 +161,13 @@ model Invoice {
   status        InvoiceStatus @default(UNPAID)
   createdAt     DateTime  @default(now())
 
-  contract      StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  contract      StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   lines         InvoiceLine[]
   payments      Payment[]
 }
 
 model InvoiceLine {
-  invoiceLineId Int      @id @default(autoincrement())
+  id            Int        @id @default(autoincrement())
   invoiceId     Int
   itemId        Int?
   packagingType PackagingType?
@@ -183,11 +175,11 @@ model InvoiceLine {
   unitRate      Float    @default(0)
   description   String
 
-  invoice       Invoice @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+  invoice       Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
-  paymentId       Int      @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   invoiceId       Int
   paymentDate     DateTime @default(now())
   amount          Float
@@ -195,39 +187,23 @@ model Payment {
   transactionRef  String?
   remarks         String?
 
-  invoice         Invoice @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+  invoice         Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   
   @@index([invoiceId])
   }
 
-model Employee {
-  employeeId  Int      @id @default(autoincrement())
-  storeId     Int?
-  fullName    String
-  phone       String?  @unique
-  role        String?
-  salary      Float?
-  hiredDate   DateTime?
-  createdAt   DateTime @default(now())
-
-  store       ColdStore? @relation(fields: [storeId], references: [storeId], onDelete: SetNull)
-}
-
 model ContractLog {
-  logId       Int      @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   contractId  Int
   action      String
   actionTime  DateTime @default(now())
   performedBy String?
   notes       String?
 
-  contract    StorageContract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  contract    StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 }
 
 enum RateType {
-  PER_BORI
-  PER_TORA
-  PER_CRATE
   PER_DAY
   PER_MONTH
   FIXED
