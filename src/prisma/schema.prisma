@@ -29,33 +29,46 @@ model Settings{
   value   String
 }
 
+model Owner {
+  id        Int @id @default(autoincrement())
+  fullName  String
+  phone     String @unique
+  cnic      String? @unique
+  address   String?
+  createdAt DateTime @default(now())
+
+  stores    ColdStore[]
+}
+model ColdStore {
+  id          Int      @id @default(autoincrement())
+  storeName   String
+  hasCode     String
+  location    String?
+  contactInfo String?
+  onwerId     Int
+  
+  owner       Owner    @relation(fields: [onwerId], references: [id], onDelete: Cascade)  
+  rooms       Room[]
+}
 model Room {
   id              Int      @id @default(autoincrement())
   roomName        String
-  capacity        Int?
   temperatureMin  Float?
   temperatureMax  Float?
   isActive        Boolean  @default(true)
-
-  floors          floor[]
-}
-
-model floor {
-  id              Int      @id @default(autoincrement())
-  floorName       String
-  description     String?
-  roomId          Int
-
-  racks           Rack[]
-  room            Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-}
+  storeId         Int
+  
+  store           ColdStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  racks            Rack[]
+  }
 
 model Rack {
   id          Int      @id @default(autoincrement())
-  floorId     Int
   rackName    String   //will be derive from floor and row + Left/Right
+  roomId      Int
     
-  floor       floor     @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  stockMovements StockMovement[]
 }
 
 model Farmer {
@@ -138,7 +151,8 @@ model StockMovement {
   referenceNote   String?
 
   contractLine    ContractLine?   @relation(fields: [contractLineId], references: [id], onDelete: SetNull)
-
+  rack             Rack?            @relation(fields: [rackId], references: [id], onDelete: SetNull)
+  
   @@index([contractLineId])
 }
 
