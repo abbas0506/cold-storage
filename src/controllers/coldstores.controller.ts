@@ -22,31 +22,46 @@ export const index = async (req: Request, res: Response) => {
 // Create a new cold store
 export const create = async (req: Request, res: Response) => {
   try {
-    const { name, address } = req.body;
+    const { user, name, address, rooms } = req.body;
 
-    const newUser = await prisma.user.create({
-      data: {
-        username: "baoo@dhsak",
-        password: "12345678",
-      },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          username: user.username,
+          password: user.password,
+        },
+      });
 
-    const newColdStore = await prisma.coldStore.create({
-      data: {
-        name: name,
-        address: address,
-        hashCode: `${name}-${Date.now()}`,
-        userId: Number(newUser.id), // Use the ID of the newly created user
-      },
-    });
+      const newColdStore = await tx.coldStore.create({
+        data: {
+          name,
+          address,
+          hashCode: `${name}-${Date.now()}`,
+          userId: Number(newUser.id),
+        },
+      });
 
-    const { rooms, tempMin, tempMax } = req.body;
-    if (!newColdStore.id) {
-      return res.status(400).json({ message: "Store Id required!" });
-    }
-    try {
+      const floorLabels = [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+      ];
+
       for (const room of rooms) {
-        const newRoom = await prisma.room.create({
+        const newRoom = await tx.room.create({
           data: {
             name: room.name,
             tempMin: room.tempMin,
@@ -55,28 +70,46 @@ export const create = async (req: Request, res: Response) => {
           },
         });
 
-        const numberOfRacks = room.numberOfRacks || 0;
-        const numberOfFloors = room.numberOfFloors || 0;
+        const numOfRacks = Number(room.numOfRacks) || 0;
+        const numOfFloors = Number(room.numOfFloors) || 0;
+        const roomCapacity = Number(room.capacity) || 0;
 
-        const floorLabels = ["A", "B", "C", "D", "E", "F", "G", "H"];
+        const rackCapacity =
+          roomCapacity > 0 && numOfRacks > 0 && numOfFloors > 0
+            ? roomCapacity / (numOfRacks * numOfFloors)
+            : 0;
 
-        for (let floor = 1; floor <= numberOfFloors; floor++) {
-          for (let rack = 1; rack <= numberOfRacks; rack++) {
-            await prisma.rack.create({
-              data: {
-                name: `${floorLabels[floor - 1]} ${rack}-L`,
-                roomId: Number(newRoom.id),
-              },
+        // Prepare all racks in memory first
+        const racksData: any[] = [];
+
+        for (let floor = 1; floor <= numOfFloors; floor++) {
+          for (let rack = 1; rack <= numOfRacks; rack++) {
+            racksData.push({
+              name: `${rack}${floorLabels[floor - 1]}-L`,
+              capacity: rackCapacity,
+              roomId: Number(newRoom.id),
+            });
+
+            racksData.push({
+              name: `${rack}${floorLabels[floor - 1]}-R`,
+              capacity: rackCapacity,
+              roomId: Number(newRoom.id),
             });
           }
         }
-      }
-      res.json({ message: "Rooms created successfully" });
-    } catch (error) {
-      return res.status(500).json({ message: "Error creating Room", error });
-    }
 
-    res.status(201).json(newColdStore);
+        // Insert all racks in one query
+        if (racksData.length > 0) {
+          await tx.rack.createMany({
+            data: racksData,
+          });
+        }
+      }
+
+      return newColdStore;
+    });
+
+    res.status(201).json(result);
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: error.message });
@@ -87,15 +120,15 @@ export const create = async (req: Request, res: Response) => {
 export const show = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const coldStore = await prisma.coldStore.findUnique({
+    const record = await prisma.coldStore.findUnique({
       where: { id },
     });
 
-    if (!coldStore) {
+    if (!record) {
       return res.status(404).json({ message: "Cold store not found" });
     }
 
-    res.json(coldStore);
+    res.json(record);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error fetching cold store" });
@@ -106,11 +139,11 @@ export const show = async (req: Request, res: Response) => {
 export const update = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { name, address } = req.body;
+    const { name, address, phone } = req.body;
 
     const updatedColdStore = await prisma.coldStore.update({
       where: { id },
-      data: { name, address },
+      data: { name, address, phone },
     });
 
     res.json(updatedColdStore);
