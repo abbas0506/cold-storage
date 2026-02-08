@@ -21,6 +21,8 @@ model User{
   role UserRole @default(EMPLOYEE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  coldStores ColdStore[]
 }
 
 model Settings{
@@ -29,43 +31,35 @@ model Settings{
   value   String
 }
 
-model Owner {
-  id        Int @id @default(autoincrement())
-  fullName  String
-  phone     String @unique
-  cnic      String? @unique
-  address   String?
-  createdAt DateTime @default(now())
-
-  stores    ColdStore[]
-}
 model ColdStore {
   id          Int      @id @default(autoincrement())
-  storeName   String
-  hasCode     String
-  location    String?
-  contactInfo String?
-  onwerId     Int
+  name   String
+  hashCode     String
+  address    String?
+  phone       String?
+  userId      Int
   
-  owner       Owner    @relation(fields: [onwerId], references: [id], onDelete: Cascade)  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms       Room[]
+
+  @@map("cold_stores")
 }
 model Room {
-  id              Int      @id @default(autoincrement())
-  roomName        String
-  temperatureMin  Float?
-  temperatureMax  Float?
-  isActive        Boolean  @default(true)
-  storeId         Int
+  id       Int      @id @default(autoincrement())
+  name     String
+  tempMin  Float?
+  tempMax  Float?
+  isActive Boolean  @default(true)
+  storeId  Int
   
-  store           ColdStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  racks            Rack[]
+  store    ColdStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  racks    Rack[]
   }
 
 model Rack {
-  id          Int      @id @default(autoincrement())
-  rackName    String   //will be derive from floor and row + Left/Right
-  roomId      Int
+  id      Int      @id @default(autoincrement())
+  name    String   //will be derive from floor and row + Left/Right
+  roomId  Int
     
   room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
@@ -73,7 +67,7 @@ model Rack {
 
 model Farmer {
   id         Int      @id @default(autoincrement())
-  fullName   String
+  name       String
   phone      String   @unique
   cnic       String?  @unique
   address    String?
@@ -86,7 +80,7 @@ model Farmer {
 
 model Item {
   id          Int     @id @default(autoincrement())
-  itemName    String
+  name    String
   description String?
 
   ratePlans   RatePlan[]
@@ -104,7 +98,9 @@ model RatePlan {
   createdAt     DateTime @default(now())
 
   item          Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  }
+  
+  @@map("rate_plans")
+}
 
 model StorageContract {
   id              Int      @id @default(autoincrement())
@@ -123,7 +119,7 @@ model StorageContract {
   logs            ContractLog[]
 
   @@index([farmerId])
-  
+  @@map("storage_contracts")
   }
 
 model ContractLine {
@@ -139,6 +135,8 @@ model ContractLine {
   item             Item?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
   contract         StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   movements        StockMovement[]
+
+  @@map("contract_lines")
 }
 
 model StockMovement {
@@ -154,6 +152,7 @@ model StockMovement {
   rack             Rack?            @relation(fields: [rackId], references: [id], onDelete: SetNull)
   
   @@index([contractLineId])
+  @@map("stock_movements")
 }
 
 model Invoice {
@@ -190,6 +189,7 @@ model InvoiceLine {
   description   String
 
   invoice       Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  @@map("invoice_lines")
 }
 
 model Payment {
@@ -215,6 +215,7 @@ model ContractLog {
   notes       String?
 
   contract    StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  @@map("contract_logs")
 }
 
 enum RateType {
