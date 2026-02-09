@@ -38,12 +38,65 @@ export const create = async (req: Request, res: Response) => {
   const storeId = Number(req.params.storeId);
 
   try {
-    const { name, tempMin, tempMax } = req.body;
-    const newroom = await prisma.room.create({
-      data: { name, tempMin, tempMax, storeId },
-    });
+    const { name, tempMin, tempMax, numOfFloors, numOfRacks, roomCapacity } =
+      req.body;
 
-    return res.status(201).json(newroom);
+    const rackCapacity =
+      roomCapacity > 0 && numOfRacks > 0 && numOfFloors > 0
+        ? roomCapacity / (numOfRacks * numOfFloors)
+        : 0;
+
+    const floorLabels = [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+    ];
+    const result = await prisma.$transaction(async (tx) => {
+      const newRoom = await prisma.room.create({
+        data: { name, tempMin, tempMax, storeId },
+      });
+
+      // Prepare all racks in memory first
+      const racksData: any[] = [];
+
+      for (let floor = 1; floor <= numOfFloors; floor++) {
+        for (let rack = 1; rack <= numOfRacks; rack++) {
+          racksData.push({
+            name: `${rack}${floorLabels[floor - 1]}-L`,
+            capacity: rackCapacity,
+            roomId: Number(newRoom.id),
+          });
+
+          racksData.push({
+            name: `${rack}${floorLabels[floor - 1]}-R`,
+            capacity: rackCapacity,
+            roomId: Number(newRoom.id),
+          });
+        }
+      }
+
+      // Insert all racks in one query
+      if (racksData.length > 0) {
+        await tx.rack.createMany({
+          data: racksData,
+        });
+      }
+      return res.status(201).json(newRoom);
+    });
+    res.status(201).json(result);
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: error.message });

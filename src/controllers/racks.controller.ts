@@ -8,8 +8,12 @@ export const index = async (req: Request, res: Response) => {
   try {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
     const [items, total] = await Promise.all([
-      prisma.rack.findMany({ skip, take: pageSize }),
-      prisma.rack.count(),
+      prisma.rack.findMany({
+        skip,
+        take: pageSize,
+        where: { roomId: Number(req.params.roomId) },
+      }),
+      prisma.rack.count({ where: { roomId: Number(req.params.roomId) } }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));
