@@ -21,6 +21,9 @@ export const index = async (req: Request, res: Response) => {
       prisma.room.findMany({
         skip,
         take: pageSize,
+        include: {
+          racks: true,
+        },
         where: { storeId: Number(req.params.storeId) },
       }),
       prisma.room.count({ where: { storeId: Number(req.params.storeId) } }),
