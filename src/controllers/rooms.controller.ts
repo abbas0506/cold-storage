@@ -7,9 +7,23 @@ import { createPaginatedResponse, getPaginationParams } from "../utils";
 export const index = async (req: Request, res: Response) => {
   try {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
+    const storeId = Number(req.params.storeId);
+    // find the cold store to ensure it exists and to get its rooms
+    const coldstore = await prisma.coldStore.findUnique({
+      where: { id: storeId },
+      include: { rooms: true },
+    });
+    if (!coldstore) {
+      return res.status(404).json({ message: "Cold store not found" });
+    }
+    // use the rooms from the cold store to create a paginated response
     const [items, total] = await Promise.all([
-      prisma.room.findMany({ skip, take: pageSize }),
-      prisma.room.count(),
+      prisma.room.findMany({
+        skip,
+        take: pageSize,
+        where: { storeId: Number(req.params.storeId) },
+      }),
+      prisma.room.count({ where: { storeId: Number(req.params.storeId) } }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));
@@ -21,10 +35,10 @@ export const index = async (req: Request, res: Response) => {
 
 // Create a new room
 export const create = async (req: Request, res: Response) => {
-  try {
-    const storeId = Number(req.params.storeId);
-    const { name, tempMin, tempMax } = req.body;
+  const storeId = Number(req.params.storeId);
 
+  try {
+    const { name, tempMin, tempMax } = req.body;
     const newroom = await prisma.room.create({
       data: { name, tempMin, tempMax, storeId },
     });

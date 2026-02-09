@@ -5,7 +5,7 @@ import {
   show,
   update,
   destroy,
-} from "../controllers/rooms.controller";
+} from "../controllers/racks.controller";
 
 const router = Router({ mergeParams: true });
 
