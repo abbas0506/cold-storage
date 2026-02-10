@@ -69,7 +69,15 @@ export const create = async (req: Request, res: Response) => {
     ];
     const result = await prisma.$transaction(async (tx) => {
       const newRoom = await prisma.room.create({
-        data: { name, tempMin, tempMax, storeId },
+        data: {
+          name,
+          tempMin,
+          tempMax,
+          numOfFloors,
+          numOfRacks,
+          roomCapacity,
+          storeId,
+        },
       });
 
       // Prepare all racks in memory first
@@ -129,11 +137,12 @@ export const show = async (req: Request, res: Response) => {
 export const update = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { name, tempMin, tempMax } = req.body;
+    const { name, tempMin, tempMax, numOfFloors, numOfRacks, roomCapacity } =
+      req.body;
 
     const updatedroom = await prisma.room.update({
       where: { id },
-      data: { name, tempMin, tempMax },
+      data: { name, tempMin, tempMax, numOfFloors, numOfRacks, roomCapacity },
     });
 
     res.json(updatedroom);

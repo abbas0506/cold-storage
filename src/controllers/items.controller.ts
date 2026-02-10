@@ -7,9 +7,17 @@ import { createPaginatedResponse, getPaginationParams } from "../utils";
 export const index = async (req: Request, res: Response) => {
   try {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
+    const storeId = Number(req.params.storeId);
+    if (Number.isNaN(storeId) || storeId <= 0) {
+      return res.status(400).json({ message: "Invalid storeId" });
+    }
     const [items, total] = await Promise.all([
-      prisma.item.findMany({ skip, take: pageSize }),
-      prisma.item.count(),
+      prisma.item.findMany({
+        skip,
+        take: pageSize,
+        where: { storeId: storeId },
+      }),
+      prisma.item.count({ where: { storeId: storeId } }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));
@@ -22,9 +30,14 @@ export const index = async (req: Request, res: Response) => {
 // Create a new item
 export const create = async (req: Request, res: Response) => {
   try {
+    const storeId = Number(req.params.storeId);
     const { name, description } = req.body;
+
+    if (Number.isNaN(storeId) || storeId <= 0) {
+      return res.status(400).json({ message: "Invalid storeId" });
+    }
     const newitem = await prisma.item.create({
-      data: { name, description },
+      data: { name, description, storeId },
     });
 
     return res.status(201).json(newitem);

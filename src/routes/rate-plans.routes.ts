@@ -1,0 +1,19 @@
+import { Router } from "express";
+import {
+  index,
+  create,
+  show,
+  update,
+  destroy,
+} from "../controllers/rate-plans.controller";
+
+const router = Router();
+
+// get all cold stores
+router.get("/", index);
+router.post("/", create);
+router.get("/:id", show);
+router.put("/:id", update);
+router.delete("/:id", destroy);
+
+export default router;

@@ -49,6 +49,9 @@ model Room {
   name     String
   tempMin  Float?
   tempMax  Float?
+  numOfFloors Int      @default(0)
+  numOfRacks Int      @default(0)
+  roomCapacity Int      @default(0)
   isActive Boolean  @default(true)
   storeId  Int
   
@@ -73,6 +76,7 @@ model Farmer {
   cnic       String?  @unique
   address    String?
   marka      String?  // For identifying farmer's product
+  storeId    Int
   createdAt  DateTime @default(now())
 
   contracts  StorageContract[]
@@ -83,6 +87,7 @@ model Item {
   id          Int     @id @default(autoincrement())
   name    String
   description String?
+  storeId Int
 
   ratePlans   RatePlan[]
   contractLines ContractLine[]
@@ -150,7 +155,7 @@ model StockMovement {
   referenceNote   String?
 
   contractLine    ContractLine?   @relation(fields: [contractLineId], references: [id], onDelete: SetNull)
-  rack             Rack?            @relation(fields: [rackId], references: [id], onDelete: SetNull)
+  rack            Rack?            @relation(fields: [rackId], references: [id], onDelete: SetNull)
   
   @@index([contractLineId])
   @@map("stock_movements")

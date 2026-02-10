@@ -7,9 +7,14 @@ import { createPaginatedResponse, getPaginationParams } from "../utils";
 export const index = async (req: Request, res: Response) => {
   try {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
+    const storeId = Number(req.params.storeId);
     const [items, total] = await Promise.all([
-      prisma.farmer.findMany({ skip, take: pageSize }),
-      prisma.farmer.count(),
+      prisma.farmer.findMany({
+        skip,
+        take: pageSize,
+        where: { storeId: storeId },
+      }),
+      prisma.farmer.count({ where: { storeId: storeId } }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));
@@ -23,10 +28,16 @@ export const index = async (req: Request, res: Response) => {
 export const create = async (req: Request, res: Response) => {
   try {
     const { name, phone, cnic, address, marka } = req.body;
+    const storeId = Number(req.params.storeId);
+    if (!req.params.storeId) {
+      return res.status(400).json({ message: "storeId param is missing" });
+    }
+    if (Number.isNaN(storeId) || storeId <= 0) {
+      return res.status(400).json({ message: "Invalid storeId" });
+    }
     const newFarmer = await prisma.farmer.create({
-      data: { name, phone, cnic, address, marka },
+      data: { name, phone, cnic, address, marka, storeId },
     });
-
     return res.status(201).json(newFarmer);
   } catch (error: any) {
     console.error(error);
