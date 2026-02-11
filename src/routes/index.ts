@@ -9,7 +9,7 @@ import rackRouter from "./racks.routes";
 import farmerRouter from "./farmers.routes";
 import itemRouter from "./items.routes";
 import ratePlanRouter from "./rate-plans.routes";
-import contractRouter from "./contracts";
+import contractRouter from "./contracts.routes";
 
 const router = Router();
 
