@@ -141,16 +141,16 @@ export const update = async (req: Request, res: Response) => {
       },
     });
 
-    for (const item of items) {
-      if (item.id) {
+    for (const line of items) {
+      if (line.id) {
         // Update existing line item
         await prisma.contractLine.update({
-          where: { id: item.id },
+          where: { id: line.id },
           data: {
-            itemId: item.itemId,
-            quantity: item.quantity,
-            packagingType: item.packagingType,
-            unitRate: item.unitRate,
+            itemId: line.itemId,
+            quantity: line.quantity,
+            packagingType: line.packagingType,
+            unitRate: line.unitRate,
           },
         });
       } else {
@@ -158,15 +158,14 @@ export const update = async (req: Request, res: Response) => {
         await prisma.contractLine.create({
           data: {
             contractId: updatedstoragePlan.id,
-            itemId: item.itemId,
-            quantity: item.quantity,
-            packagingType: item.packagingType,
-            unitRate: item.unitRate,
+            itemId: line.itemId,
+            quantity: line.quantity,
+            packagingType: line.packagingType,
+            unitRate: line.unitRate,
           },
         });
       }
     }
-
     res.json(updatedstoragePlan);
   } catch (error: any) {
     console.error(error);
