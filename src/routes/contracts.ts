@@ -5,7 +5,7 @@ import {
   show,
   update,
   destroy,
-} from "../controllers/coldstores.controller";
+} from "../controllers/contracts.controller";
 
 const router = Router({ mergeParams: true });
 

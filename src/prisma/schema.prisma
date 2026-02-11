@@ -80,7 +80,7 @@ model Farmer {
   storeId   Int
   createdAt DateTime @default(now())
 
-  contracts StorageContract[]
+  contracts Contract[]
 }
 
 model Item {
@@ -108,7 +108,7 @@ model RatePlan {
   @@map("rate_plans")
 }
 
-model StorageContract {
+model Contract {
   id              Int            @id @default(autoincrement())
   farmerId        Int
   contractCode    String         @unique
@@ -139,7 +139,7 @@ model ContractLine {
   remarks       String?
 
   item      Item?           @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  contract  StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract  Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   movements StockMovement[]
 
   @@map("contract_lines")
@@ -180,7 +180,7 @@ model Invoice {
   status    InvoiceStatus @default(UNPAID)
   createdAt DateTime      @default(now())
 
-  contract StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   lines    InvoiceLine[]
   payments Payment[]
 }
@@ -221,7 +221,7 @@ model ContractLog {
   performedBy String?
   notes       String?
 
-  contract StorageContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@map("contract_logs")
 }

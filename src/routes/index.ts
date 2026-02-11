@@ -9,6 +9,7 @@ import rackRouter from "./racks.routes";
 import farmerRouter from "./farmers.routes";
 import itemRouter from "./items.routes";
 import ratePlanRouter from "./rate-plans.routes";
+import contractRouter from "./contracts";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use(
 router.use("/coldstores/:storeId/farmers", authenticate, farmerRouter);
 router.use("/coldstores/:storeId/items", authenticate, itemRouter);
 router.use("/coldstores/:storeId/rate-plans", authenticate, ratePlanRouter);
+router.use("/coldstores/:storeId/contracts", authenticate, contractRouter);
 
 export default router;
