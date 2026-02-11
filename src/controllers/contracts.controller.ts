@@ -47,7 +47,7 @@ export const create = async (req: Request, res: Response) => {
       actualEndDate,
       status,
       notes,
-      items
+      items,
     } = req.body;
     const storeId = Number(req.params.storeId);
     if (!req.params.storeId) {
@@ -56,7 +56,7 @@ export const create = async (req: Request, res: Response) => {
     if (Number.isNaN(storeId) || storeId <= 0) {
       return res.status(400).json({ message: "Invalid storeId" });
     }
-    const newstoragePlan = await prisma.contract.create({
+    const newRecord = await prisma.contract.create({
       data: {
         farmerId,
         contractCode,
@@ -71,7 +71,7 @@ export const create = async (req: Request, res: Response) => {
     for (const item of items) {
       await prisma.contractLine.create({
         data: {
-          contractId: newstoragePlan.id,
+          contractId: newRecord.id,
           itemId: item.itemId,
           quantity: item.quantity,
           packagingType: item.packagingType,
@@ -79,7 +79,7 @@ export const create = async (req: Request, res: Response) => {
         },
       });
     }
-    return res.status(201).json(newstoragePlan);
+    return res.status(201).json(newRecord);
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: error.message });
@@ -92,14 +92,6 @@ export const show = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const record = await prisma.contract.findUnique({
       where: { id },
-      include: {
-        farmer: true,
-        items: {
-          include: {
-            item: true,
-          },
-        },
-      },
     });
 
     if (!record) {
@@ -125,7 +117,7 @@ export const update = async (req: Request, res: Response) => {
       actualEndDate,
       status,
       notes,
-      items
+      items,
     } = req.body;
 
     const updatedstoragePlan = await prisma.contract.update({
