@@ -91,63 +91,28 @@ export const show = async (req: Request, res: Response) => {
 export const update = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const {
-      farmerId,
-      contractCode,
-      startDate,
-      expectedEndDate,
-      actualEndDate,
-      status,
-      notes,
-      items,
-    } = req.body;
+    const { movementType, rackId, quantity, movementDate, referenceNote } =
+      req.body;
 
-    const updatedstoragePlan = await prisma.contract.update({
+    const updatedRec = await prisma.stockMovement.update({
       where: { id },
       data: {
-        farmerId,
-        contractCode,
-        startDate,
-        expectedEndDate,
-        actualEndDate,
-        status,
-        notes,
+        movementType,
+        rackId,
+        quantity,
+        movementDate,
+        referenceNote,
       },
     });
 
-    for (const line of items) {
-      if (line.id) {
-        // Update existing line item
-        await prisma.contractLine.update({
-          where: { id: line.id },
-          data: {
-            itemId: line.itemId,
-            quantity: line.quantity,
-            packagingType: line.packagingType,
-            unitRate: line.unitRate,
-          },
-        });
-      } else {
-        // Create new line item
-        await prisma.contractLine.create({
-          data: {
-            contractId: updatedstoragePlan.id,
-            itemId: line.itemId,
-            quantity: line.quantity,
-            packagingType: line.packagingType,
-            unitRate: line.unitRate,
-          },
-        });
-      }
-    }
-    res.json(updatedstoragePlan);
+    res.json(updatedRec);
   } catch (error: any) {
     console.error(error);
     if (error.code === "P2025") {
       // Prisma "record not found" error
-      return res.status(404).json({ message: "Storage contract not found" });
+      return res.status(404).json({ message: "Stock movement not found" });
     }
-    res.status(500).json({ message: "Error updatingstorage contract" });
+    res.status(500).json({ message: "Error updating stock movement" });
   }
 };
 
@@ -156,16 +121,16 @@ export const destroy = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
-    await prisma.contract.delete({
+    await prisma.stockMovement.delete({
       where: { id },
     });
 
-    res.json({ message: "Storage contract deleted successfully" });
+    res.json({ message: "Stock movement deleted successfully" });
   } catch (error: any) {
     console.error(error);
     if (error.code === "P2025") {
-      return res.status(404).json({ message: "Storage contract not found" });
+      return res.status(404).json({ message: "Stock movement not found" });
     }
-    res.status(500).json({ message: "Error deletingstorage contract" });
+    res.status(500).json({ message: "Error deleting stock movement" });
   }
 };
