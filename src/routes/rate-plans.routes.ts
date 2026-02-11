@@ -7,7 +7,7 @@ import {
   destroy,
 } from "../controllers/rate-plans.controller";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 // get all cold stores
 router.get("/", index);

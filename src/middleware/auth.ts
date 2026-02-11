@@ -16,8 +16,8 @@ export const authenticate = (
 
   const token = authHeader.split(" ")[1];
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    (req as any).user = { id: payload.sub, username: payload.username };
+    const payload = jwt.verify(token, JWT_SECRET) as unknown as { sub: number; username: string };
+    req.user = { id: payload.sub, username: payload.username };
     next();
   } catch (err) {
     res.status(401).json({ error: "Invalid token" });

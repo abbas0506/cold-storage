@@ -52,14 +52,16 @@ export const create = async (req: Request, res: Response) => {
       effectiveFrom,
       effectiveTo,
     } = req.body;
+    var effectiveFrom1 = new Date(effectiveFrom);
+    var effectiveTo1 = effectiveTo ? new Date(effectiveTo) : null;
     const newRatePlan = await prisma.ratePlan.create({
       data: {
         itemId,
         packagingType,
         rateType,
         rateAmount,
-        effectiveFrom,
-        effectiveTo,
+        effectiveFrom: effectiveFrom1,
+        effectiveTo: effectiveTo1,
       },
     });
 

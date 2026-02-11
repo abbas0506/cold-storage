@@ -22,22 +22,19 @@ export const index = async (req: Request, res: Response) => {
 // Create a new cold store
 export const create = async (req: Request, res: Response) => {
   try {
-    const { user, name, address, rooms } = req.body;
+    const { name, address, rooms } = req.body;
 
     const result = await prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          username: user.username,
-          password: user.password,
-        },
-      });
-
+      if (req.user == null) {
+        throw new Error("Unauthorized");
+      }
+      const user = req.user;
       const newColdStore = await tx.coldStore.create({
         data: {
           name,
           address,
           hashCode: `${name}-${Date.now()}`,
-          userId: Number(newUser.id),
+          userId: user.id,
         },
       });
 
@@ -61,18 +58,23 @@ export const create = async (req: Request, res: Response) => {
       ];
 
       for (const room of rooms) {
+
+        const numOfRacks = Number(room.numOfRacks) || 0;
+        const numOfFloors = Number(room.numOfFloors) || 0;
+        const roomCapacity = Number(room.roomCapacity) || 0;
+
         const newRoom = await tx.room.create({
           data: {
             name: room.name,
             tempMin: room.tempMin,
             tempMax: room.tempMax,
             storeId: Number(newColdStore.id),
+            numOfFloors,
+            numOfRacks,
+            roomCapacity,
           },
         });
 
-        const numOfRacks = Number(room.numOfRacks) || 0;
-        const numOfFloors = Number(room.numOfFloors) || 0;
-        const roomCapacity = Number(room.capacity) || 0;
 
         const rackCapacity =
           roomCapacity > 0 && numOfRacks > 0 && numOfFloors > 0
