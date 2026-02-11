@@ -16,6 +16,14 @@ export const index = async (req: Request, res: Response) => {
       prisma.contract.findMany({
         skip,
         take: pageSize,
+        include: {
+          farmer: true,
+          items: {
+            include: {
+              item: true,
+            },
+          },
+        },
         where: { farmerId: { in: farmerIds } },
       }),
       prisma.contract.count({ where: { farmerId: { in: farmerIds } } }),
@@ -39,6 +47,7 @@ export const create = async (req: Request, res: Response) => {
       actualEndDate,
       status,
       notes,
+      items
     } = req.body;
     const storeId = Number(req.params.storeId);
     if (!req.params.storeId) {
@@ -58,6 +67,18 @@ export const create = async (req: Request, res: Response) => {
         notes,
       },
     });
+
+    for (const item of items) {
+      await prisma.contractLine.create({
+        data: {
+          contractId: newstoragePlan.id,
+          itemId: item.itemId,
+          quantity: item.quantity,
+          packagingType: item.packagingType,
+          unitRate: item.unitRate,
+        },
+      });
+    }
     return res.status(201).json(newstoragePlan);
   } catch (error: any) {
     console.error(error);
@@ -96,6 +117,7 @@ export const update = async (req: Request, res: Response) => {
       actualEndDate,
       status,
       notes,
+      items
     } = req.body;
 
     const updatedstoragePlan = await prisma.contract.update({
@@ -110,6 +132,32 @@ export const update = async (req: Request, res: Response) => {
         notes,
       },
     });
+
+    for (const item of items) {
+      if (item.id) {
+        // Update existing line item
+        await prisma.contractLine.update({
+          where: { id: item.id },
+          data: {
+            itemId: item.itemId,
+            quantity: item.quantity,
+            packagingType: item.packagingType,
+            unitRate: item.unitRate,
+          },
+        });
+      } else {
+        // Create new line item
+        await prisma.contractLine.create({
+          data: {
+            contractId: updatedstoragePlan.id,
+            itemId: item.itemId,
+            quantity: item.quantity,
+            packagingType: item.packagingType,
+            unitRate: item.unitRate,
+          },
+        });
+      }
+    }
 
     res.json(updatedstoragePlan);
   } catch (error: any) {
