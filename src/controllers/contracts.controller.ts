@@ -92,6 +92,14 @@ export const show = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const record = await prisma.contract.findUnique({
       where: { id },
+      include: {
+        farmer: true,
+        items: {
+          include: {
+            item: true,
+          },
+        },
+      },
     });
 
     if (!record) {
