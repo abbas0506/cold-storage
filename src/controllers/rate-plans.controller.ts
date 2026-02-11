@@ -104,6 +104,9 @@ export const update = async (req: Request, res: Response) => {
       effectiveTo,
     } = req.body;
 
+    const effectiveFrom1 = new Date(effectiveFrom);
+    const effectiveTo1 = effectiveTo ? new Date(effectiveTo) : null;
+
     const updatedRatePlan = await prisma.ratePlan.update({
       where: { id },
       data: {
@@ -111,8 +114,8 @@ export const update = async (req: Request, res: Response) => {
         itemId,
         rateType,
         rateAmount,
-        effectiveFrom,
-        effectiveTo,
+        effectiveFrom: effectiveFrom1,
+        effectiveTo: effectiveTo1,
       },
     });
 
