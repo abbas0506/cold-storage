@@ -61,10 +61,11 @@ model Room {
 }
 
 model Rack {
-  id       Int    @id @default(autoincrement())
-  name     String //will be derive from floor and row + Left/Right
-  capacity Int?
-  roomId   Int
+  id           Int    @id @default(autoincrement())
+  name         String //will be derive from floor and row + Left/Right
+  capacity     Int?
+  currentStock Int    @default(0)
+  roomId       Int
 
   room           Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
@@ -139,7 +140,7 @@ model ContractLine {
   remarks       String?
 
   item      Item?           @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  contract  Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract  Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
   movements StockMovement[]
 
   @@map("contract_lines")
@@ -180,7 +181,7 @@ model Invoice {
   status    InvoiceStatus @default(UNPAID)
   createdAt DateTime      @default(now())
 
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
   lines    InvoiceLine[]
   payments Payment[]
 }

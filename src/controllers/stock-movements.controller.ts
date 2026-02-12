@@ -52,12 +52,21 @@ export const create = async (req: Request, res: Response) => {
     for (const line of lines) {
       await prisma.stockMovement.create({
         data: {
-          contractLineId: contractId,
-          movementType: "IN",
+          contractLineId: line.contractLineId,
+          movementType: line.movementType,
           rackId: line.rackId,
           quantity: line.quantity,
           movementDate: line.movementDate,
           referenceNote: line.referenceNote,
+        },
+      });
+      const isIncrement = line.movementType === "IN";
+      await prisma.rack.update({
+        where: { id: line.rackId },
+        data: {
+          currentStock: {
+            increment: isIncrement ? line.quantity : -line.quantity,
+          },
         },
       });
     }
@@ -132,5 +141,32 @@ export const destroy = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Stock movement not found" });
     }
     res.status(500).json({ message: "Error deleting stock movement" });
+  }
+};
+
+
+export const getRacksFormItemLine = async (req: Request, res: Response) => {
+  try {
+    const lineId = Number(req.params.lineId);
+    const line = await prisma.contractLine.findUnique({
+      where: { id: lineId },
+      include: {
+        item: true,
+        movements: {
+          include: {
+            rack: {
+              include: { room: true },
+            },
+          },
+        },
+      },
+    });
+    if (!line) {
+      return res.status(404).json({ message: "Contract line not found" });
+    }
+    res.json(line.movements.map((movement) => movement.rack));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching rack movements for item" });
   }
 };

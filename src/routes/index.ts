@@ -11,6 +11,7 @@ import itemRouter from "./items.routes";
 import ratePlanRouter from "./rate-plans.routes";
 import contractRouter from "./contracts.routes";
 import stockMovementRouter from "./stock-movements.routes";
+import statisticsRouter from "./statistics.routes";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use(
   authenticate,
   stockMovementRouter,
 );
+router.use("/statistics", authenticate, statisticsRouter);
 
 export default router;
