@@ -10,8 +10,10 @@ import farmerRouter from "./farmers.routes";
 import itemRouter from "./items.routes";
 import ratePlanRouter from "./rate-plans.routes";
 import contractRouter from "./contracts.routes";
+import payementRouter from "./payments.routes";
 import stockMovementRouter from "./stock-movements.routes";
 import statisticsRouter from "./statistics.routes";
+import ledgerRouter from "./ledger.routes";
 
 const router = Router();
 
@@ -28,11 +30,13 @@ router.use("/coldstores/:storeId/farmers", authenticate, farmerRouter);
 router.use("/coldstores/:storeId/items", authenticate, itemRouter);
 router.use("/coldstores/:storeId/rate-plans", authenticate, ratePlanRouter);
 router.use("/coldstores/:storeId/contracts", authenticate, contractRouter);
+router.use("/coldstores/:storeId/payments", authenticate, payementRouter);
 router.use(
   "/coldstores/:storeId/contracts/:contractId/stock-movements",
   authenticate,
   stockMovementRouter,
 );
 router.use("/statistics", authenticate, statisticsRouter);
+router.use("/ledger", authenticate, ledgerRouter);
 
 export default router;

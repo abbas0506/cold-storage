@@ -41,11 +41,7 @@ export const create = async (req: Request, res: Response) => {
   try {
     const {
       farmerId,
-      contractCode,
-      startDate,
       expectedEndDate,
-      actualEndDate,
-      status,
       notes,
       items,
     } = req.body;
@@ -56,15 +52,33 @@ export const create = async (req: Request, res: Response) => {
     if (Number.isNaN(storeId) || storeId <= 0) {
       return res.status(400).json({ message: "Invalid storeId" });
     }
+
+    const netAmount = items.reduce((acc: number, item: any) => acc + item.quantity * item.unitRate, 0);
+    const taxAmount = netAmount * 0.16; // Assuming a 16% sales tax
+    const totalAmount = netAmount + taxAmount;
+
+    const countContract = await prisma.contract.count({
+      where: {
+        farmerId: farmerId
+      }
+    });
+    const codePad = String(countContract + 1).padStart(4, '0');
+    const farmerPad = String(farmerId).padStart(4, '0');
+    const contractCode = 'CON-' + farmerPad + "-" + codePad;
+
     const newRecord = await prisma.contract.create({
       data: {
         farmerId,
         contractCode,
-        startDate,
+        startDate: new Date(),
         expectedEndDate,
-        actualEndDate,
-        status,
+        actualEndDate: expectedEndDate,
+        status: 'ACTIVE',
         notes,
+        netAmount,
+        totalAmount,
+        salesTaxAmount: taxAmount,
+        saleTaxRate: 0.16,
       },
     });
 
@@ -79,7 +93,45 @@ export const create = async (req: Request, res: Response) => {
         },
       });
     }
-    return res.status(201).json(newRecord);
+
+    const balanceSub = await prisma.ledger.findFirst({
+      where: {
+        farmerId: farmerId,
+      },
+      orderBy: {
+        id: 'desc',
+      }
+    });
+    const balance = balanceSub ? balanceSub.balance + totalAmount : totalAmount;
+
+    const ledgerEntry = await prisma.ledger.create({
+      data: {
+        farmerId: farmerId,
+        debit: totalAmount,
+        credit: 0,
+        balance: balance,
+        description: `Storage contract ${contractCode} created with total amount ${totalAmount}`,
+      },
+    });
+
+    // update the contract with the ledger entry ID
+    await prisma.contract.update({
+      where: { id: newRecord.id },
+      data: { ledgerId: ledgerEntry.id },
+    });
+    const contract = await prisma.contract.findUnique({
+      where: { id: newRecord.id },
+      include: {
+        farmer: true,
+        items: {
+          include: {
+            item: true,
+          },
+        },
+      },
+    });
+
+    return res.status(201).json(contract);
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: error.message });
@@ -193,5 +245,24 @@ export const destroy = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Storage contract not found" });
     }
     res.status(500).json({ message: "Error deletingstorage contract" });
+  }
+};
+
+
+export const updateFbrInvoice = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { fbrInvoiceNumber } = req.body;
+    const updatedContract = await prisma.contract.update({
+      where: { id },
+      data: { fbrInvoiceNumber },
+    });
+    res.json(updatedContract);
+  } catch (error: any) {
+    console.error(error);
+    if (error.code === "P2025") {
+      return res.status(404).json({ message: "Storage contract not found" });
+    }
+    res.status(500).json({ message: "Error updating FBR invoice number" });
   }
 };

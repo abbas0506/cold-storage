@@ -8,9 +8,6 @@ export const index = async (req: Request, res: Response) => {
   try {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
     const contractId = Number(req.params.contractId);
-    const contractLines = await prisma.contractLine.findMany({
-      where: { contractId: contractId },
-    });
     const [items, total] = await Promise.all([
       prisma.contractLine.findMany({
         skip,

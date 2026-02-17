@@ -23,6 +23,38 @@ async function main() {
             hashCode: await bcrypt.hash("coldstore", 10),
         },
     });
+
+    await prisma.item.createMany({
+        data: [
+            { name: "Esmi Potato", storeId: 1 },
+            { name: "Mozika Potato", storeId: 1 },
+            { name: "LR Potato", storeId: 1 },
+        ],
+    });
+
+    await prisma.ratePlan.createMany({
+        data: [
+            { storeId: 1, packagingType: "BORI", rateType: "PER_MONTH", rateAmount: 100 },
+            { storeId: 1, packagingType: "TORA", rateType: "PER_MONTH", rateAmount: 100 },
+        ],
+    });
+
+    await prisma.farmer.createMany({
+        data: [
+            { name: "Ali Raza", phone: "555-5678", storeId: 1 },
+            { name: "Zeshan Khan", phone: "555-8765", storeId: 1 },
+        ],
+    });
+
+
+    await prisma.settings.createMany({
+        data: [
+            {
+                key: "ledger_show_balance",
+                value: "true",
+            },
+        ],
+    });
 }
 
 main()

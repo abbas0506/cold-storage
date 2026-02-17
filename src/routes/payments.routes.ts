@@ -5,8 +5,7 @@ import {
   show,
   update,
   destroy,
-  updateFbrInvoice,
-} from "../controllers/contracts.controller";
+} from "../controllers/payments.controller";
 
 const router = Router({ mergeParams: true });
 
@@ -16,6 +15,5 @@ router.post("/", create);
 router.get("/:id", show);
 router.put("/:id", update);
 router.delete("/:id", destroy);
-router.put("/:id/fbr-invoice", updateFbrInvoice);
 
 export default router;

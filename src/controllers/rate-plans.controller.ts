@@ -16,20 +16,13 @@ export const index = async (req: Request, res: Response) => {
     const [ratePlans, count] = await prisma.$transaction([
       prisma.ratePlan.findMany({
         where: {
-          item: {
-            storeId: storeId,
-          },
-        },
-        include: {
-          item: true,
+          storeId: storeId,
         },
       }),
 
       prisma.ratePlan.count({
         where: {
-          item: {
-            storeId: storeId,
-          },
+          storeId: storeId,
         },
       }),
     ]);
@@ -45,23 +38,16 @@ export const index = async (req: Request, res: Response) => {
 export const create = async (req: Request, res: Response) => {
   try {
     const {
-      itemId,
       packagingType,
       rateType,
       rateAmount,
-      effectiveFrom,
-      effectiveTo,
     } = req.body;
-    var effectiveFrom1 = new Date(effectiveFrom);
-    var effectiveTo1 = effectiveTo ? new Date(effectiveTo) : null;
     const newRatePlan = await prisma.ratePlan.create({
       data: {
-        itemId,
+        storeId: Number(req.params.storeId),
         packagingType,
         rateType,
         rateAmount,
-        effectiveFrom: effectiveFrom1,
-        effectiveTo: effectiveTo1,
       },
     });
 
@@ -97,25 +83,17 @@ export const update = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const {
       packagingType,
-      itemId,
       rateType,
       rateAmount,
-      effectiveFrom,
-      effectiveTo,
     } = req.body;
 
-    const effectiveFrom1 = new Date(effectiveFrom);
-    const effectiveTo1 = effectiveTo ? new Date(effectiveTo) : null;
 
     const updatedRatePlan = await prisma.ratePlan.update({
       where: { id },
       data: {
         packagingType,
-        itemId,
         rateType,
         rateAmount,
-        effectiveFrom: effectiveFrom1,
-        effectiveTo: effectiveTo1,
       },
     });
 

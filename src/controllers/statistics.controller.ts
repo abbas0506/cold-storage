@@ -53,14 +53,12 @@ export const getAllStoresStatistics = async (req: Request, res: Response) => {
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
                 const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-                const monthlyRevenue = await prisma.invoice.aggregate({
+                const monthlyRevenue = await prisma.contract.aggregate({
                     where: {
-                        contract: {
-                            farmer: {
-                                storeId: store.id,
-                            },
+                        farmer: {
+                            storeId: store.id,
                         },
-                        invoiceDate: {
+                        createdAt: {
                             gte: startOfMonth,
                             lte: endOfMonth,
                         },
@@ -133,14 +131,12 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
                     const startDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
                     const endDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
 
-                    const revenue = await prisma.invoice.aggregate({
+                    const revenue = await prisma.contract.aggregate({
                         where: {
-                            contract: {
-                                farmer: {
-                                    storeId: store.id,
-                                },
+                            farmer: {
+                                storeId: store.id,
                             },
-                            invoiceDate: {
+                            createdAt: {
                                 gte: startDate,
                                 lte: endDate,
                             },
@@ -405,25 +401,23 @@ export const getStoreDetailedStatistics = async (req: Request, res: Response) =>
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-        const recentInvoices = await prisma.invoice.findMany({
+        const recentInvoices = await prisma.contract.findMany({
             where: {
-                contract: {
-                    farmer: {
-                        storeId: storeIdNum,
-                    },
+                farmer: {
+                    storeId: storeIdNum,
                 },
-                invoiceDate: {
+                createdAt: {
                     gte: threeMonthsAgo,
                 },
             },
             orderBy: {
-                invoiceDate: 'desc',
+                createdAt: 'desc',
             },
         });
 
-        const paidInvoices = recentInvoices.filter((inv) => inv.status === 'PAID');
-        const unpaidInvoices = recentInvoices.filter((inv) => inv.status === 'UNPAID');
-        const partialInvoices = recentInvoices.filter((inv) => inv.status === 'PARTIAL');
+        const paidInvoices = recentInvoices.filter((inv) => inv.notes === 'PAID');
+        const unpaidInvoices = recentInvoices.filter((inv) => inv.notes === 'UNPAID');
+        const partialInvoices = recentInvoices.filter((inv) => inv.notes === 'PARTIAL');
 
         const revenueSummary = {
             totalInvoiced: recentInvoices.reduce((sum, inv) => sum + inv.netAmount, 0),
@@ -498,9 +492,9 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const monthlyRevenue = await prisma.invoice.aggregate({
+        const monthlyRevenue = await prisma.contract.aggregate({
             where: {
-                invoiceDate: {
+                createdAt: {
                     gte: startOfMonth,
                 },
             },
@@ -510,9 +504,9 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
         });
 
         // Unpaid invoices
-        const unpaidInvoicesTotal = await prisma.invoice.aggregate({
+        const unpaidInvoicesTotal = await prisma.contract.aggregate({
             where: {
-                status: {
+                notes: {
                     in: ['UNPAID', 'PARTIAL'],
                 },
             },
@@ -521,9 +515,9 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
             },
         });
 
-        const unpaidInvoicesCount = await prisma.invoice.count({
+        const unpaidInvoicesCount = await prisma.contract.count({
             where: {
-                status: {
+                notes: {
                     in: ['UNPAID', 'PARTIAL'],
                 },
             },
