@@ -6,16 +6,18 @@ import {
   update,
   destroy,
   updateFbrInvoice,
+  generateContractReport,
 } from "../controllers/contracts.controller";
 
 const router = Router({ mergeParams: true });
 
-// get all cold stores
+// Contract routes
 router.get("/", index);
 router.post("/", create);
+router.get("/:id/report", generateContractReport); // More specific route first
+router.put("/:id/fbr-invoice", updateFbrInvoice);
 router.get("/:id", show);
 router.put("/:id", update);
 router.delete("/:id", destroy);
-router.put("/:id/fbr-invoice", updateFbrInvoice);
 
 export default router;

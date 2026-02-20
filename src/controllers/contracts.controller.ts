@@ -2,6 +2,16 @@
 import { Request, Response } from "express";
 import { prisma } from "../prisma/prisma";
 import { createPaginatedResponse, getPaginationParams } from "../utils";
+import dayjs from "dayjs";
+import path from "path";
+import {
+  createPDFGenerator,
+} from "../utils/pdf";
+import {
+  generateInfoSection,
+  generateTable,
+  generateSignatureSection,
+} from "../utils/pdf/pdfkit-components";
 
 // Get allstorage contracts
 export const index = async (req: Request, res: Response) => {
@@ -228,7 +238,222 @@ export const update = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error updatingstorage contract" });
   }
 };
+/**
+ * Generate Contract Report PDF using PDFKit Components (A5 Landscape)
+ */
+export const generateContractReport = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
 
+    // Fetch contract data with relations
+    const contract = await prisma.contract.findUnique({
+      where: { id: Number(id) },
+      include: {
+        farmer: true,
+        items: {
+          include: {
+            item: true,
+          },
+        },
+      },
+    });
+
+    if (!contract) {
+      res.status(404).json({ message: "Contract not found" });
+      return;
+    }
+
+    // Calculate totals
+    const items = contract.items.map((line) => ({
+      itemName: line.item?.name || "N/A",
+      packagingType: line.packagingType || "N/A",
+      quantity: line.quantity || 0,
+      unitRate: line.unitRate || 0,
+      amount: (line.quantity || 0) * (line.unitRate || 0),
+    }));
+
+    // Logo path
+    const logoPath = path.join(__dirname, "../../logo/logo.jpg");
+
+    // Create PDF Generator with Header and Footer (A5 Landscape)
+    const pdfGen = createPDFGenerator({
+      pdfOptions: {
+        size: "A5",
+        orientation: "landscape",
+        margins: { top: 10, bottom: 10, left: 10, right: 10 },
+      },
+      header: {
+        title: "Storage Contract",
+        subtitle: `${contract.contractCode}`,
+        logo: {
+          path: logoPath,
+          width: 50,
+          height: 50,
+        },
+        showDate: true,
+        titleFont: { family: "Helvetica-Bold", size: 14 },
+        subtitleFont: { size: 9, color: "#666666" },
+        filterInfo: {
+          "Status": contract.status,
+          "Start": dayjs(contract.startDate).format("DD MMM YYYY"),
+          "End": contract.expectedEndDate
+            ? dayjs(contract.expectedEndDate).format("DD MMM YYYY")
+            : "N/A",
+        },
+      },
+      footer: {
+        leftText: "ABC Cold Storage",
+        centerText: "Storage Contract",
+        showPageNumber: true,
+        font: { size: 7, color: "#666666" },
+      },
+    });
+
+    const doc = pdfGen.getDocument();
+
+    // Contract Information Section
+    generateInfoSection(
+      doc,
+      {
+        data: {
+          "Farmer Name": contract.farmer.name,
+          "Phone": contract.farmer.phone || "N/A",
+          "CNIC": contract.farmer.cnic || "N/A",
+          "Address": contract.farmer.address || "N/A",
+        },
+        columns: 4,
+        // backgroundColor: "#f9f9f9",
+        // borderColor: "#e0e0e0",
+        padding: 2,
+        labelFont: { family: "Helvetica-Bold", size: 8 },
+        valueFont: { size: 8 },
+      }
+    );
+
+    pdfGen.moveDown(0.8);
+
+    // Items Table
+    generateTable(
+      doc,
+      {
+        columns: [
+          {
+            label: "Item",
+            key: "itemName",
+            width: "*",
+            align: "left",
+          },
+          {
+            label: "Packaging",
+            key: "packagingType",
+            width: 70,
+            align: "center",
+          },
+          {
+            label: "Quantity",
+            key: "quantity",
+            width: 60,
+            align: "right",
+            format: (value: any) => value.toLocaleString(),
+          },
+          {
+            label: "Rate",
+            key: "unitRate",
+            width: 60,
+            align: "right",
+            format: (value: any) => value.toLocaleString(),
+          },
+          {
+            label: "Amount",
+            key: "amount",
+            width: 70,
+            align: "right",
+            format: (value: any) => value.toLocaleString(),
+          },
+        ],
+        data: items,
+        showHeader: true,
+        headerBackgroundColor: "#333333",
+        headerTextColor: "#ffffff",
+        headerFont: { family: "Helvetica-Bold", size: 9 },
+        bodyFont: { size: 8 },
+        alternateRowColor: false,
+        alternateColor: "#f9f9f9",
+        borderColor: "#cccccc",
+        showTotal: true,
+        totalLabel: "Total",
+        totalColumns: {
+          amount: contract.netAmount,
+        },
+        totalBackgroundColor: "#e0e0e0",
+        totalFont: { family: "Helvetica-Bold", size: 9 },
+      }
+    );
+
+    pdfGen.moveDown(0.8);
+
+    // Financial Summary
+    generateInfoSection(
+      doc,
+      {
+        data: {
+          "Net Amount": contract.netAmount.toLocaleString(),
+          "Sales Tax": `${(contract.saleTaxRate * 100).toFixed(0)}%`,
+          "Tax Amount": contract.salesTaxAmount.toLocaleString(),
+          "Total Amount": contract.totalAmount.toLocaleString(),
+        },
+        columns: 4,
+        borderColor: "#f0c040",
+        padding: 8,
+        labelFont: { family: "Helvetica-Bold", size: 8 },
+        valueFont: { family: "Helvetica-Bold", size: 8, color: "#c06000" },
+      }
+    );
+
+    pdfGen.moveDown(1.5);
+
+    // Signature Section
+    generateSignatureSection(
+      doc,
+      {
+        signatures: [
+          {
+            label: "Prepared By",
+            name: "_________________",
+            title: "Storage Manager",
+          },
+          {
+            label: "Farmer Signature",
+            name: "_________________",
+            title: contract.farmer.name,
+          },
+          {
+            label: "Authorized By",
+            name: "_________________",
+            title: "General Manager",
+          },
+        ],
+        spacing: 30,
+        lineWidth: 100,
+        labelFont: { family: "Helvetica-Bold", size: 8 },
+        nameFont: { family: "Helvetica", size: 9 },
+      }
+    );
+
+    // Finalize and send
+    const filename = `contract-${contract.contractCode}-${dayjs().format("YYYY-MM-DD")}.pdf`;
+    await pdfGen.sendToResponse(res, filename);
+  } catch (error) {
+    console.error("Contract report generation error:", error);
+    res.status(500).json({
+      error: "Failed to generate contract report",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
 // Delete astorage contract by ID
 export const destroy = async (req: Request, res: Response) => {
   try {

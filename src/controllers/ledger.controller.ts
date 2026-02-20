@@ -1,18 +1,18 @@
 import { Request, Response } from "express";
 import dayjs from "dayjs";
+import { prisma } from "../prisma/prisma";
+import path from "path";
 import {
-    PDFGenerator,
-    PDFTemplateBuilder,
-    generateHeader,
-    generateFooter,
+    createPDFGenerator,
+    registerUrduFonts,
+} from "../utils/pdf";
+import {
     generateInfoSection,
     generateTable,
-    TableColumn,
-} from "../utils/pdf";
-import { prisma } from "../prisma/prisma";
+} from "../utils/pdf/pdfkit-components";
 
 /**
- * Generate Ledger Report PDF
+ * Generate Ledger Report PDF using PDFKit Components
  */
 export const generateLedgerReport = async (
     req: Request,
@@ -29,8 +29,12 @@ export const generateLedgerReport = async (
                     lte: to ? new Date(to as string) : undefined,
                 },
                 farmerId: farmerId ? Number(farmerId) : undefined,
-            }
+            },
+            orderBy: {
+                transactionDate: "asc",
+            },
         });
+
         const farmer = await prisma.farmer.findUnique({
             where: {
                 id: farmerId ? Number(farmerId) : undefined,
@@ -58,99 +62,134 @@ export const generateLedgerReport = async (
         );
         const closingBalance = balance;
 
-        // Define table columns
-        const columns: TableColumn[] = [
-            {
-                label: "Date",
-                key: "date",
-                align: "center",
-                format: (value) => dayjs(value).format("DD-MM-YYYY"),
-            },
-            {
-                label: "Description",
-                key: "description",
-                align: "left",
-            },
-            {
-                label: "Debit",
-                key: "debit",
-                align: "center",
-                format: (value) => (value ? value.toLocaleString() : "-"),
-            },
-            {
-                label: "Credit",
-                key: "credit",
-                align: "center",
-                format: (value) => (value ? value.toLocaleString() : "-"),
-            },
-            {
-                label: "Balance",
-                key: "balance",
-                align: "center",
-                format: (value) => value.toLocaleString(),
-            },
-        ];
+        // Logo path
+        const logoPath = path.join(__dirname, "../../logo/logo.jpg");
 
-        // Build PDF content using template builder
-        const builder = new PDFTemplateBuilder();
-
-        // Add header
-        builder.add(
-            generateHeader({
+        // Create PDF Generator with Header and Footer
+        const pdfGen = createPDFGenerator({
+            pdfOptions: {
+                size: "A4",
+                // orientation: "landscape",
+                margins: { top: 10, bottom: 10, left: 20, right: 20 },
+            },
+            header: {
                 title: "Ledger Report",
                 subtitle: farmer ? `Farmer: ${farmer.name}` : "General Ledger",
+                logo: {
+                    path: logoPath,
+                    width: 60,
+                    height: 60,
+                },
                 showDate: true,
-            })
-        );
+                titleFont: { family: "Helvetica-Bold", size: 16 },
+                subtitleFont: { size: 10, color: "#666666" },
+                filterInfo: {
+                    "From": from ? dayjs(from as string).format("DD MMM YYYY") : "N/A",
+                    "To": to ? dayjs(to as string).format("DD MMM YYYY") : "N/A",
+                    "Total": ledgerData.length.toString(),
+                },
+            },
+            footer: {
+                leftText: "Cold Storage System",
+                centerText: "Ledger Report",
+                showPageNumber: true,
+                font: { size: 8, color: "#666666" },
+            },
+        });
 
-        // Add info section with report parameters
-        builder.add(
-            generateInfoSection({
-                "From Date": from ? dayjs(from as string).format("DD MMM YYYY") : "N/A",
-                "To Date": to ? dayjs(to as string).format("DD MMM YYYY") : "N/A",
-                "Total Entries": ledgerData.length.toString(),
-                "Report Type": "Ledger Statement",
-            })
-        );
+        const doc = pdfGen.getDocument();
 
-        // Add table
-        builder.add(
-            generateTable(columns, dataWithBalance, {
+        // Register Urdu fonts if available
+        // registerUrduFonts(doc);
+
+        // Table - removed separate info section as it's now in header
+        generateTable(
+            doc,
+            {
+                columns: [
+                    {
+                        label: "Date",
+                        key: "transactionDate",
+                        width: 60,
+                        align: "center",
+                        format: (value: any) => dayjs(value).format("DD-MM-YYYY"),
+                    },
+                    {
+                        label: "Description",
+                        key: "description",
+                        width: "*",
+                        align: "left",
+                    },
+                    {
+                        label: "Debit",
+                        key: "debit",
+                        width: 80,
+                        align: "right",
+                        format: (value: any) => (value ? value.toLocaleString() : "-"),
+                    },
+                    {
+                        label: "Credit",
+                        key: "credit",
+                        width: 80,
+                        align: "right",
+                        format: (value: any) => (value ? value.toLocaleString() : "-"),
+                    },
+                    {
+                        label: "Balance",
+                        key: "balance",
+                        width: 80,
+                        align: "right",
+                        format: (value: any) => value.toLocaleString(),
+                    },
+                ],
+                data: dataWithBalance,
+                showHeader: true,
+                headerBackgroundColor: "#333333",
+                headerTextColor: "#ffffff",
+                headerFont: { family: "Helvetica-Bold", size: 10 },
+                bodyFont: { size: 8 },
+                alternateRowColor: false,
+                alternateColor: "#f9f9f9",
+                borderColor: "#cccccc",
                 showTotal: true,
                 totalLabel: "Total",
                 totalColumns: {
-                    description: "",
                     debit: totalDebit,
                     credit: totalCredit,
                     balance: closingBalance,
                 },
-            })
+                totalBackgroundColor: "#e0e0e0",
+                totalFont: { family: "Helvetica-Bold", size: 10 },
+            }
         );
 
-        // Add summary section
-        builder.add('<div class="mt-20">');
-        builder.add(
-            generateInfoSection({
-                "Opening Balance": dataWithBalance.length > 0
-                    ? (dataWithBalance[0].balance - dataWithBalance[0].debit + dataWithBalance[0].credit).toLocaleString()
-                    : "0",
-                "Total Debit": totalDebit.toLocaleString(),
-                "Total Credit": totalCredit.toLocaleString(),
-                "Closing Balance": closingBalance.toLocaleString(),
-            })
-        );
-        builder.add("</div>");
+        pdfGen.moveDown(1);
 
-        // Add footer note
-        builder.add(
-            '<p class="text-center mt-20" style="font-size: 10px; color: #999;">This is a computer-generated report and does not require a signature.</p>'
-        );
+        // // Summary Section
+        // const openingBalance = dataWithBalance.length > 0
+        //     ? dataWithBalance[0].balance - dataWithBalance[0].debit + dataWithBalance[0].credit
+        //     : 0;
 
-        // Generate and send PDF
-        await PDFGenerator.sendPDFResponse(res, {
-            html: builder.build(),
-            filename: `ledger-report-${dayjs().format("YYYY-MM-DD")}.pdf`,
-        });
+        // generateInfoSection(
+        //     doc,
+        //     {
+        //         data: {
+        //             "Opening Balance": openingBalance.toLocaleString(),
+        //             "Total Debit": totalDebit.toLocaleString(),
+        //             "Total Credit": totalCredit.toLocaleString(),
+        //             "Closing Balance": closingBalance.toLocaleString(),
+        //         },
+        //         columns: 2,
+        //         backgroundColor: "#fffbf0",
+        //         borderColor: "#f0c040",
+        //         labelFont: { family: "Helvetica-Bold", size: 11 },
+        //         valueFont: { family: "Helvetica-Bold", size: 11, color: "#c06000" },
+        //     }
+        // );
+
+        // Finalize and send
+        const filename = `ledger-report-${dayjs().format("YYYY-MM-DD")}.pdf`;
+        await pdfGen.sendToResponse(res, filename);
     } catch (error) {
         console.error("Ledger report generation error:", error);
         res.status(500).json({
@@ -161,8 +200,7 @@ export const generateLedgerReport = async (
 };
 
 /**
- * Generate Detailed Ledger Report with Multiple Pages
- * Example of multi-page report with page breaks
+ * Generate Detailed Ledger Report with Multiple Pages using PDFKit Components
  */
 export const generateDetailedLedgerReport = async (
     req: Request,
@@ -184,104 +222,148 @@ export const generateDetailedLedgerReport = async (
             },
         });
 
-        const builder = new PDFTemplateBuilder();
-
-        // Page 1: Summary
-        builder.add(
-            generateHeader({
-                title: "Detailed Ledger Report",
-                subtitle: "Summary & Overview",
-                showDate: true,
-            })
-        );
-
-        builder.add(
-            generateInfoSection({
-                "Report Period": `${from || "Start"} to ${to || "End"}`,
-                "Total Transactions": ledgerData.length.toString(),
-                "Status": "Generated",
-            })
-        );
-
-        builder.add('<div class="section">');
-        builder.add('<h2 class="section-title">Executive Summary</h2>');
-        builder.add(
-            '<p>This report provides a detailed overview of all ledger transactions for the specified period.</p>'
-        );
-        builder.add("</div>");
-
-        // Page break
-        builder.addPageBreak();
-
-        // Page 2: Detailed Transactions
-        builder.add(
-            generateHeader({
-                title: "Transaction Details",
-                showDate: false,
-            })
-        );
-
+        // Calculate running balance
         let balance = 0;
         const dataWithBalance = ledgerData.map((row) => {
             balance += row.debit - row.credit;
             return { ...row, balance };
         });
 
-        const columns: TableColumn[] = [
-            {
-                label: "Date",
-                key: "date",
-                format: (value) => dayjs(value).format("DD-MM-YYYY"),
+        // Create PDF Generator with Header and Footer
+        const pdfGen = createPDFGenerator({
+            pdfOptions: {
+                size: "A4",
+                margins: { top: 140, bottom: 60, left: 50, right: 50 },
             },
-            {
-                label: "Description",
-                key: "description",
-                align: "left",
+            header: {
+                title: "Detailed Ledger Report",
+                subtitle: "Complete Transaction History",
+                showDate: true,
+                titleFont: { family: "Helvetica-Bold", size: 16 },
+                subtitleFont: { size: 10, color: "#555555" },
+                filterInfo: {
+                    "From": from ? dayjs(from as string).format("DD MMM YYYY") : "Start",
+                    "To": to ? dayjs(to as string).format("DD MMM YYYY") : "End",
+                    "Transactions": ledgerData.length.toString(),
+                },
             },
-            {
-                label: "Debit",
-                key: "debit",
-                align: "right",
-                format: (value) => (value ? value.toLocaleString() : "-"),
+            footer: {
+                leftText: "Confidential",
+                centerText: "Detailed Ledger",
+                showPageNumber: true,
+                pageNumberFormat: (current, total) => `Page ${current} of ${total}`,
+                font: { size: 8, color: "#666666" },
             },
-            {
-                label: "Credit",
-                key: "credit",
-                align: "right",
-                format: (value) => (value ? value.toLocaleString() : "-"),
-            },
-            {
-                label: "Balance",
-                key: "balance",
-                align: "right",
-                format: (value) => value.toLocaleString(),
-            },
-        ];
-
-        builder.add(generateTable(columns, dataWithBalance));
-
-        // Generate PDF with footer
-        const footerHtml = generateFooter({
-            leftText: "Confidential",
-            centerText: "Page ",
-            rightText: dayjs().format("DD MMM YYYY"),
-            showPageNumber: true,
         });
 
-        await PDFGenerator.sendPDFResponse(res, {
-            html: builder.build(),
-            filename: `detailed-ledger-${dayjs().format("YYYY-MM-DD")}.pdf`,
-            displayHeaderFooter: false,
-            customStyles: `
-        /* Additional custom styles for this report */
-        .section {
-          margin: 30px 0;
-          padding: 20px;
-          background: #f9f9f9;
-          border-left: 4px solid #333;
-        }
-      `,
-        });
+        const doc = pdfGen.getDocument();
+
+        // Register Urdu fonts if available
+        registerUrduFonts(doc);
+
+        // Page 1: Executive Summary
+        doc.fontSize(14)
+            .font("Helvetica-Bold")
+            .fillColor("#333333")
+            .text("Executive Summary", 50, doc.y);
+
+        pdfGen.moveDown(0.5);
+
+        generateInfoSection(
+            doc,
+            {
+                data: {
+                    "Report Period": `${from ? dayjs(from as string).format("DD MMM YYYY") : "Start"} to ${to ? dayjs(to as string).format("DD MMM YYYY") : "End"}`,
+                    "Total Transactions": ledgerData.length.toString(),
+                    "Status": "Generated",
+                    "Generated By": "System Administrator",
+                },
+                columns: 2,
+                backgroundColor: "#f0f8ff",
+                borderColor: "#4682b4",
+                labelFont: { family: "Helvetica-Bold", size: 10 },
+                valueFont: { size: 10 },
+            }
+        );
+
+        pdfGen.moveDown(1);
+
+        doc.fontSize(10)
+            .font("Helvetica")
+            .fillColor("#000000")
+            .text(
+                "This report provides a detailed overview of all ledger transactions for the specified period. " +
+                "Each transaction is listed with its date, description, debit/credit amounts, and running balance. " +
+                "The report includes automatic page breaks and sequential page numbering.",
+                { align: "justify", width: 495 }
+            );
+
+        // Add page break for transaction details
+        pdfGen.addPage();
+
+        doc.fontSize(16)
+            .font("Helvetica-Bold")
+            .text("Transaction Details");
+
+        pdfGen.moveDown(1);
+
+        // Detailed Transaction Table
+        generateTable(
+            doc,
+            {
+                columns: [
+                    {
+                        label: "Date",
+                        key: "transactionDate",
+                        width: 90,
+                        align: "center",
+                        format: (value: any) => dayjs(value).format("DD-MM-YYYY"),
+                    },
+                    {
+                        label: "Description",
+                        key: "description",
+                        width: "*",
+                        align: "left",
+                    },
+                    {
+                        label: "Debit",
+                        key: "debit",
+                        width: 90,
+                        align: "right",
+                        format: (value: any) => (value ? value.toLocaleString() : "-"),
+                    },
+                    {
+                        label: "Credit",
+                        key: "credit",
+                        width: 90,
+                        align: "right",
+                        format: (value: any) => (value ? value.toLocaleString() : "-"),
+                    },
+                    {
+                        label: "Balance",
+                        key: "balance",
+                        width: 90,
+                        align: "right",
+                        format: (value: any) => value.toLocaleString(),
+                    },
+                ],
+                data: dataWithBalance,
+                showHeader: true,
+                headerBackgroundColor: "#2c3e50",
+                headerTextColor: "#ffffff",
+                headerFont: { family: "Helvetica-Bold", size: 9 },
+                bodyFont: { size: 8 },
+                alternateRowColor: true,
+                alternateColor: "#f8f9fa",
+                borderColor: "#dee2e6",
+                rowHeight: 20,
+                headerHeight: 25,
+            }
+        );
+
+        // Finalize and send
+        const filename = `detailed-ledger-${dayjs().format("YYYY-MM-DD")}.pdf`;
+        await pdfGen.sendToResponse(res, filename);
     } catch (error) {
         console.error("Detailed ledger report error:", error);
         res.status(500).json({
