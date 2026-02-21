@@ -28,7 +28,8 @@ echo   2. JWT_SECRET - A secure secret key for authentication
 echo   3. PORT - Server port (default: 3000)
 echo   4. PUPPETEER_EXECUTABLE_PATH - Path to Chrome (optional)
 echo.
-echo After configuration, run: cold-storage.exe
+echo After configuration, run first: cold-storage.exe --migrate --seed
+echo Then start app with: cold-storage.exe
 echo ========================================
 pause
 goto :end

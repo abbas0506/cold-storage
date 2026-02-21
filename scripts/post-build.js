@@ -53,6 +53,15 @@ if (fs.existsSync(logoSrc)) {
     console.log('✓ Copied logo directory to build directory');
 }
 
+// Copy prisma migrations directory if it exists
+const prismaMigrationsSrc = path.join(rootDir, 'src', 'prisma', 'migrations');
+const prismaMigrationsDest = path.join(buildDir, 'prisma', 'migrations');
+
+if (fs.existsSync(prismaMigrationsSrc)) {
+    copyDirectory(prismaMigrationsSrc, prismaMigrationsDest);
+    console.log('✓ Copied prisma migrations to build directory');
+}
+
 // Create README.txt for distribution
 const readmeContent = `Cold Storage Application
 ========================================
@@ -61,7 +70,8 @@ Installation Instructions:
 --------------------------
 1. Run setup.bat to create your .env configuration file
 2. Edit the .env file with your database credentials
-3. Run cold-storage.exe to start the application
+3. Run cold-storage.exe --migrate --seed (first-time setup / schema + seed updates)
+4. Run cold-storage.exe to start the application
 
 Configuration:
 --------------

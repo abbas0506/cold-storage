@@ -1,10 +1,13 @@
 import { prisma } from '../prisma/prisma';
 import bcrypt from "bcryptjs";
 
-async function main() {
+export async function seedDatabase() {
 
-    await prisma.coldStore.deleteMany();
-    await prisma.user.deleteMany();
+    const isAlreadySeeded = await prisma.user.findFirst();
+    if (isAlreadySeeded) {
+        console.log("Database already seeded, skipping...");
+        return;
+    }
     // Create a user
     const hash = await bcrypt.hash("password", 10);
     const user = await prisma.user.create({
@@ -57,13 +60,14 @@ async function main() {
     });
 }
 
-main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-        console.log("Seeding completed");
-        process.exit(0);
-    });
+if (require.main === module) {
+    seedDatabase()
+        .catch((e) => {
+            console.error(e);
+            process.exitCode = 1;
+        })
+        .finally(async () => {
+            await prisma.$disconnect();
+            console.log("Seeding completed");
+        });
+}
