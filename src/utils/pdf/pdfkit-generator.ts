@@ -4,6 +4,13 @@ import { PDFKitOptions, HeaderOptions, FooterOptions, PDFDocumentType } from "./
 import { generateHeader, generateFooter } from "./pdfkit-components";
 import fs from "fs";
 import path from "path";
+import {
+    FontDefinition,
+    applyDocumentFontAliases,
+    getReportFontTheme,
+    patchDocumentTextForUrdu,
+    setDocumentUrduFontFamily,
+} from "./pdfkit-fonts";
 
 /**
  * PDFKit Document Generator with Header/Footer Support
@@ -13,6 +20,9 @@ export interface PDFGeneratorConfig {
     pdfOptions?: PDFKitOptions;
     header?: HeaderOptions;
     footer?: FooterOptions;
+    fontRegistrations?: FontDefinition[];
+    fontFamilyMap?: Record<string, string>;
+    urduTextFontFamily?: string;
     urduFont?: {
         path: string;
         family: string;
@@ -44,6 +54,7 @@ export class PDFKitGenerator {
         };
 
         this.doc = new PDFDocument(pdfOptions);
+        const reportFontTheme = getReportFontTheme();
 
         // Add first page manually
         this.doc.addPage();
@@ -51,6 +62,43 @@ export class PDFKitGenerator {
         // Register Urdu font if provided
         if (config.urduFont && fs.existsSync(config.urduFont.path)) {
             this.doc.registerFont(config.urduFont.family, config.urduFont.path);
+        }
+
+        // Register additional theme fonts if provided
+        if (config.fontRegistrations && config.fontRegistrations.length > 0) {
+            config.fontRegistrations.forEach((font) => {
+                if (font.family && fs.existsSync(font.path)) {
+                    this.doc.registerFont(font.family, font.path);
+                }
+            });
+        }
+
+        const hasAppUrduRegistration = Boolean(
+            config.fontRegistrations?.some((font) => font.family === "App-Urdu-Regular")
+        );
+        if (!hasAppUrduRegistration && reportFontTheme.urduRegular) {
+            reportFontTheme.registrations
+                .filter((font) => font.family === "App-Urdu-Regular" || font.family === "App-Urdu-Bold")
+                .forEach((font) => {
+                    if (font.family && fs.existsSync(font.path)) {
+                        this.doc.registerFont(font.family, font.path);
+                    }
+                });
+        }
+
+        // Apply font alias mapping (e.g., Helvetica -> App-Regular)
+        if (config.fontFamilyMap && Object.keys(config.fontFamilyMap).length > 0) {
+            applyDocumentFontAliases(this.doc, config.fontFamilyMap);
+        }
+
+        const urduTextFontFamily =
+            config.urduTextFontFamily ||
+            reportFontTheme.urduRegular ||
+            config.urduFont?.family;
+
+        if (urduTextFontFamily) {
+            setDocumentUrduFontFamily(this.doc, urduTextFontFamily);
+            patchDocumentTextForUrdu(this.doc);
         }
 
         // Calculate content area

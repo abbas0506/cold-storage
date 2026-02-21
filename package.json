@@ -29,6 +29,7 @@
       "node_modules/.prisma/**/*",
       "node_modules/@prisma/client/**/*",
       "node_modules/@prisma/engines/**/*",
+      "node_modules/pdfkit/js/data/**/*",
       "fonts/**/*",
       "logo/**/*",
       ".env.example"

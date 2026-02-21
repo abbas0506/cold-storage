@@ -3,7 +3,6 @@ node_modules
 .env
 .vscode
 dist
-build
 generated
 /generated/prisma
 build

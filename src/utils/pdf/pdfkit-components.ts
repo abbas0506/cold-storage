@@ -11,6 +11,7 @@ import {
     PDFDocumentType,
 } from "./pdfkit-types";
 import fs from "fs";
+import { resolveDocumentFontFamily } from "./pdfkit-fonts";
 
 /**
  * PDFKit Components - Reusable PDF Building Blocks
@@ -31,7 +32,8 @@ export function applyFont(
     defaultFont: FontConfig = DEFAULT_FONT
 ): void {
     const font = { ...defaultFont, ...fontConfig };
-    doc.font(font.family).fontSize(font.size);
+    const resolvedFamily = resolveDocumentFontFamily(doc, font.family);
+    doc.font(resolvedFamily).fontSize(font.size);
     if (font.color) {
         doc.fillColor(font.color);
     }

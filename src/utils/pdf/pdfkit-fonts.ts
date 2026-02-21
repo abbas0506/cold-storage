@@ -13,6 +13,87 @@ export interface FontDefinition {
     family?: string;
 }
 
+export interface ReportFontTheme {
+    regular: string;
+    bold: string;
+    urduRegular?: string;
+    urduBold?: string;
+    registrations: FontDefinition[];
+    aliasMap: Record<string, string>;
+}
+
+const FONT_ALIAS_KEY = "__pdfFontAliases";
+const FONT_URDU_FAMILY_KEY = "__pdfUrduFontFamily";
+const FONT_URDU_PATCHED_KEY = "__pdfUrduTextPatched";
+
+const PROJECT_ROOT_CANDIDATES = [
+    () => process.cwd(),
+    () => path.dirname(process.execPath),
+    () => path.resolve(__dirname, "../../.."),
+    () => path.resolve(__dirname, "../../../.."),
+];
+
+function findProjectRoot(): string {
+    for (const candidateFactory of PROJECT_ROOT_CANDIDATES) {
+        const candidate = candidateFactory();
+        if (!candidate) {
+            continue;
+        }
+
+        const packageJsonPath = path.join(candidate, "package.json");
+        if (fs.existsSync(packageJsonPath)) {
+            return candidate;
+        }
+    }
+
+    return process.cwd();
+}
+
+function getFontsDirectory(): string {
+    return path.join(findProjectRoot(), "fonts");
+}
+
+function toFamilyName(fileName: string): string {
+    const withoutExt = fileName.replace(/\.(ttf|otf)$/i, "");
+    return withoutExt
+        .replace(/[_-]+/g, " ")
+        .trim();
+}
+
+function scanFontFilesRecursively(directoryPath: string): string[] {
+    if (!fs.existsSync(directoryPath)) {
+        return [];
+    }
+
+    const results: string[] = [];
+    const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const fullPath = path.join(directoryPath, entry.name);
+        if (entry.isDirectory()) {
+            results.push(...scanFontFilesRecursively(fullPath));
+            continue;
+        }
+
+        if (/\.(ttf|otf)$/i.test(entry.name)) {
+            results.push(fullPath);
+        }
+    }
+
+    return results;
+}
+
+function pickFontFile(fontPaths: string[], patterns: RegExp[]): string | undefined {
+    for (const pattern of patterns) {
+        const match = fontPaths.find((fontPath) => pattern.test(path.basename(fontPath).toLowerCase()));
+        if (match) {
+            return match;
+        }
+    }
+
+    return undefined;
+}
+
 export const AVAILABLE_FONTS = {
     // Standard fonts (built-in)
     HELVETICA: "Helvetica",
@@ -33,21 +114,156 @@ export const AVAILABLE_FONTS = {
  */
 export const URDU_FONTS: FontDefinition[] = [
     {
-        name: "Noto Nasakh Arabic",
-        family: "NotoNaskhArabic",
-        path: path.join(__dirname, "../../../fonts/NotoNaskhArabic-Regular.ttf"),
+        name: "NotoNastaliqUrdu-Regular",
+        family: "NotoNastaliqUrdu",
+        path: path.join(getFontsDirectory(), "NotoNastaliqUrdu-Regular.ttf"),
     },
     {
-        name: "Noto Nasakh Arabic Bold",
-        family: "NotoNaskhArabic-Bold",
-        path: path.join(__dirname, "../../../fonts/NotoNaskhArabic-Bold.ttf"),
+        name: "NotoNastaliqUrdu-Bold",
+        family: "NotoNastaliqUrdu-Bold",
+        path: path.join(getFontsDirectory(), "NotoNastaliqUrdu-Bold.ttf"),
     },
     {
         name: "Jameel Noori Nastaleeq",
         family: "JameelNoori",
-        path: path.join(__dirname, "../../../fonts/JameelNooriNastaleeq.ttf"),
+        path: path.join(getFontsDirectory(), "JameelNooriNastaleeq.ttf"),
     },
 ];
+
+export function getReportFontTheme(): ReportFontTheme {
+    const fontsDirectory = getFontsDirectory();
+    const fontPaths = scanFontFilesRecursively(fontsDirectory);
+
+    const regularPath = pickFontFile(fontPaths, [
+        /calibri[-_ ]regular\.(ttf|otf)$/,
+        /regular\.(ttf|otf)$/,
+        /calibri\.(ttf|otf)$/,
+    ]);
+
+    const boldPath = pickFontFile(fontPaths, [
+        /calibri[-_ ]bold\.(ttf|otf)$/,
+        /bold\.(ttf|otf)$/,
+    ]);
+
+    const urduRegularPath = pickFontFile(fontPaths, [
+        /notonastaliqurdu[-_ ]regular\.(ttf|otf)$/,
+        /noto.*urdu.*regular\.(ttf|otf)$/,
+        /urdu.*regular\.(ttf|otf)$/,
+        /notonaskh.*regular\.(ttf|otf)$/,
+    ]);
+
+    const urduBoldPath = pickFontFile(fontPaths, [
+        /notonastaliqurdu[-_ ]bold\.(ttf|otf)$/,
+        /noto.*urdu.*bold\.(ttf|otf)$/,
+        /urdu.*bold\.(ttf|otf)$/,
+        /notonaskh.*bold\.(ttf|otf)$/,
+    ]);
+
+    const registrations: FontDefinition[] = [];
+
+    if (regularPath) {
+        registrations.push({
+            name: toFamilyName(path.basename(regularPath)),
+            family: "App-Regular",
+            path: regularPath,
+        });
+    }
+
+    if (boldPath) {
+        registrations.push({
+            name: toFamilyName(path.basename(boldPath)),
+            family: "App-Bold",
+            path: boldPath,
+        });
+    }
+
+    if (urduRegularPath) {
+        registrations.push({
+            name: toFamilyName(path.basename(urduRegularPath)),
+            family: "App-Urdu-Regular",
+            path: urduRegularPath,
+        });
+    }
+
+    if (urduBoldPath) {
+        registrations.push({
+            name: toFamilyName(path.basename(urduBoldPath)),
+            family: "App-Urdu-Bold",
+            path: urduBoldPath,
+        });
+    }
+
+    const regularFamily = regularPath ? "App-Regular" : AVAILABLE_FONTS.HELVETICA;
+    const boldFamily = boldPath ? "App-Bold" : (regularPath ? "App-Regular" : AVAILABLE_FONTS.HELVETICA_BOLD);
+    const urduRegularFamily = urduRegularPath ? "App-Urdu-Regular" : undefined;
+    const urduBoldFamily = urduBoldPath ? "App-Urdu-Bold" : (urduRegularPath ? "App-Urdu-Regular" : undefined);
+
+    return {
+        regular: regularFamily,
+        bold: boldFamily,
+        urduRegular: urduRegularFamily,
+        urduBold: urduBoldFamily,
+        registrations,
+        aliasMap: {
+            Helvetica: regularFamily,
+            "Helvetica-Oblique": regularFamily,
+            "Times-Roman": regularFamily,
+            Courier: regularFamily,
+            "Helvetica-Bold": boldFamily,
+            "Times-Bold": boldFamily,
+        },
+    };
+}
+
+export function applyDocumentFontAliases(doc: PDFDocumentType, aliasMap: Record<string, string>): void {
+    const currentAliases = ((doc as any)[FONT_ALIAS_KEY] || {}) as Record<string, string>;
+    (doc as any)[FONT_ALIAS_KEY] = {
+        ...currentAliases,
+        ...aliasMap,
+    };
+}
+
+export function resolveDocumentFontFamily(doc: PDFDocumentType, requestedFamily: string): string {
+    const aliasMap = ((doc as any)[FONT_ALIAS_KEY] || {}) as Record<string, string>;
+    return aliasMap[requestedFamily] || requestedFamily;
+}
+
+export function setDocumentUrduFontFamily(doc: PDFDocumentType, urduFontFamily?: string): void {
+    if (!urduFontFamily) {
+        return;
+    }
+
+    (doc as any)[FONT_URDU_FAMILY_KEY] = urduFontFamily;
+}
+
+export function getDocumentUrduFontFamily(doc: PDFDocumentType): string | undefined {
+    return (doc as any)[FONT_URDU_FAMILY_KEY] as string | undefined;
+}
+
+export function patchDocumentTextForUrdu(doc: PDFDocumentType): void {
+    const mutableDoc = doc as any;
+    if (mutableDoc[FONT_URDU_PATCHED_KEY]) {
+        return;
+    }
+
+    const originalText = mutableDoc.text.bind(doc);
+    mutableDoc.text = (text: any, ...args: any[]) => {
+        if (typeof text === "string" && isUrduText(text)) {
+            const urduFamily = getDocumentUrduFontFamily(doc);
+            if (urduFamily) {
+                try {
+                    doc.font(urduFamily);
+                } catch (error) {
+                    console.warn(`⚠ Failed to switch to Urdu font '${urduFamily}':`, error);
+                }
+            }
+        }
+
+        return originalText(text, ...args);
+    };
+
+    mutableDoc[FONT_URDU_PATCHED_KEY] = true;
+}
 
 /**
  * Register custom fonts with PDFDocument

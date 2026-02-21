@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import path from "path";
 import {
   createPDFGenerator,
+  getReportFontTheme,
 } from "../utils/pdf";
 import {
   generateInfoSection,
@@ -277,9 +278,12 @@ export const generateContractReport = async (
 
     // Logo path
     const logoPath = path.join(__dirname, "../../logo/logo.jpg");
+    const reportFonts = getReportFontTheme();
 
     // Create PDF Generator with Header and Footer (A5 Landscape)
     const pdfGen = createPDFGenerator({
+      fontRegistrations: reportFonts.registrations,
+      fontFamilyMap: reportFonts.aliasMap,
       pdfOptions: {
         size: "A5",
         orientation: "landscape",
@@ -294,7 +298,7 @@ export const generateContractReport = async (
           height: 50,
         },
         showDate: true,
-        titleFont: { family: "Helvetica-Bold", size: 14 },
+        titleFont: { family: reportFonts.bold, size: 14 },
         subtitleFont: { size: 9, color: "#666666" },
         filterInfo: {
           "Status": contract.status,
@@ -328,8 +332,8 @@ export const generateContractReport = async (
         // backgroundColor: "#f9f9f9",
         // borderColor: "#e0e0e0",
         padding: 2,
-        labelFont: { family: "Helvetica-Bold", size: 8 },
-        valueFont: { size: 8 },
+        labelFont: { family: reportFonts.bold, size: 8 },
+        valueFont: { family: reportFonts.regular, size: 8 },
       }
     );
 
@@ -378,8 +382,8 @@ export const generateContractReport = async (
         showHeader: true,
         headerBackgroundColor: "#333333",
         headerTextColor: "#ffffff",
-        headerFont: { family: "Helvetica-Bold", size: 9 },
-        bodyFont: { size: 8 },
+        headerFont: { family: reportFonts.bold, size: 9 },
+        bodyFont: { family: reportFonts.regular, size: 8 },
         alternateRowColor: false,
         alternateColor: "#f9f9f9",
         borderColor: "#cccccc",
@@ -389,7 +393,7 @@ export const generateContractReport = async (
           amount: contract.netAmount,
         },
         totalBackgroundColor: "#e0e0e0",
-        totalFont: { family: "Helvetica-Bold", size: 9 },
+        totalFont: { family: reportFonts.bold, size: 9 },
       }
     );
 
@@ -408,8 +412,8 @@ export const generateContractReport = async (
         columns: 4,
         borderColor: "#f0c040",
         padding: 8,
-        labelFont: { family: "Helvetica-Bold", size: 8 },
-        valueFont: { family: "Helvetica-Bold", size: 8, color: "#c06000" },
+        labelFont: { family: reportFonts.bold, size: 8 },
+        valueFont: { family: reportFonts.bold, size: 8, color: "#c06000" },
       }
     );
 
@@ -438,8 +442,8 @@ export const generateContractReport = async (
         ],
         spacing: 30,
         lineWidth: 100,
-        labelFont: { family: "Helvetica-Bold", size: 8 },
-        nameFont: { family: "Helvetica", size: 9 },
+        labelFont: { family: reportFonts.bold, size: 8 },
+        nameFont: { family: reportFonts.regular, size: 9 },
       }
     );
 
