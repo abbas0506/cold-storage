@@ -13,6 +13,7 @@ export const index = async (req: Request, res: Response) => {
         skip,
         take: pageSize,
         where: { storeId: storeId },
+        orderBy: { id: "desc" },
       }),
       prisma.farmer.count({ where: { storeId: storeId } }),
     ]);
@@ -51,6 +52,21 @@ export const show = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const record = await prisma.farmer.findUnique({
       where: { id },
+      include: {
+        ledgers: {
+          take: 1,
+          orderBy: { id: "desc" },
+        },
+        payments: {
+          take: 5,
+          orderBy: { id: "desc" },
+        },
+        contracts: {
+          include: {
+            items: true,
+          },
+        },
+      },
     });
 
     if (!record) {

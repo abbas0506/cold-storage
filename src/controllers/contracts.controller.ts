@@ -36,6 +36,7 @@ export const index = async (req: Request, res: Response) => {
           },
         },
         where: { farmerId: { in: farmerIds } },
+        orderBy: { id: "desc" },
       }),
       prisma.contract.count({ where: { farmerId: { in: farmerIds } } }),
     ]);
@@ -54,6 +55,7 @@ export const create = async (req: Request, res: Response) => {
       farmerId,
       expectedEndDate,
       notes,
+      taxRate,
       items,
     } = req.body;
     const storeId = Number(req.params.storeId);
@@ -65,7 +67,7 @@ export const create = async (req: Request, res: Response) => {
     }
 
     const netAmount = items.reduce((acc: number, item: any) => acc + item.quantity * item.unitRate, 0);
-    const taxAmount = netAmount * 0.16; // Assuming a 16% sales tax
+    const taxAmount = netAmount * (taxRate / 100); // Assuming a 16% sales tax
     const totalAmount = netAmount + taxAmount;
 
     const countContract = await prisma.contract.count({
@@ -89,7 +91,7 @@ export const create = async (req: Request, res: Response) => {
         netAmount,
         totalAmount,
         salesTaxAmount: taxAmount,
-        saleTaxRate: 0.16,
+        saleTaxRate: taxRate / 100,
       },
     });
 
@@ -186,6 +188,7 @@ export const update = async (req: Request, res: Response) => {
       startDate,
       expectedEndDate,
       actualEndDate,
+      taxRate,
       status,
       notes,
       items,
@@ -201,6 +204,7 @@ export const update = async (req: Request, res: Response) => {
         actualEndDate,
         status,
         notes,
+        saleTaxRate: taxRate,
       },
     });
 
