@@ -108,6 +108,9 @@ export class PDFKitGenerator {
         // Draw header on first page if configured
         if (config.header) {
             this.contentStartY = generateHeader(this.doc, config.header);
+            // Update margins.top so PDFKit's native table knows the real content start Y.
+            // The table captures doc.page.margins.top when calculating row positions on page breaks.
+            this.doc.page.margins.top = this.contentStartY;
         }
 
         // Listen for page events to add headers/footers
@@ -118,15 +121,27 @@ export class PDFKitGenerator {
      * Setup page event listeners for automatic header/footer
      */
     private setupPageEvents(): void {
+        // Store the original physical top margin so the header always renders from the top.
+        const physicalTopMargin = this.config.pdfOptions?.margins?.top ?? this.doc.page.margins.top;
+
         this.doc.on("pageAdded", () => {
             const currentPage = this.doc.bufferedPageRange().count;
 
-            // Add header on new page
+            // Add header on new page (page 1 is handled in the constructor)
             if (this.config.header && currentPage > 1) {
-                const savedY = this.doc.y;
-                this.doc.y = this.doc.page.margins.top;
-                generateHeader(this.doc, this.config.header);
-                this.doc.y = savedY;
+                // Start from the physical top of the new page (PDFKit already set doc.y = margins.top,
+                // but margins.top may have been updated to the post-header value on the previous page).
+                this.doc.y = physicalTopMargin;
+
+                // Draw the header and get the Y position where body content should begin.
+                const contentStartY = generateHeader(this.doc, this.config.header);
+
+                // Move the cursor to just below the header.
+                this.doc.y = contentStartY;
+
+                // Update this page's top margin so PDFKit's built-in table correctly
+                // positions the first row after a page break (it reads doc.page.margins.top).
+                this.doc.page.margins.top = contentStartY;
             }
         });
     }

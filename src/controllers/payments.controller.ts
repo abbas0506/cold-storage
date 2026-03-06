@@ -24,7 +24,7 @@ export const index = async (req: Request, res: Response) => {
           id: 'desc',
         }
       }),
-      prisma.payment.count({ where: { farmerId: storeId } }),
+      prisma.payment.count({ where: { farmerId: { in: farmerIds } } }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));
@@ -49,23 +49,12 @@ export const create = async (req: Request, res: Response) => {
       data: { paymentDate: new Date(paymentDate), amount, paymentMethod, transactionRef, remarks, farmerId },
     });
 
-    const balanceSub = await prisma.ledger.findFirst({
-      where: {
-        farmerId: farmerId,
-      },
-      orderBy: {
-        id: 'desc',
-      }
-    });
-    const balance = balanceSub ? balanceSub.balance - amount : -amount;
-
     const ledgerEntry = await prisma.ledger.create({
       data: {
         farmerId: farmerId,
         debit: 0,
         credit: amount,
         description: `Payment received: ${paymentMethod} - ${transactionRef}`,
-        balance: balance,
       },
     });
 

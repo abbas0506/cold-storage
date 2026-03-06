@@ -41,8 +41,25 @@ export const generateLedgerReport = async (
             },
         });
 
-        // Calculate running balance
-        let balance = 0;
+        // Calculate previous (opening) balance from all entries before the 'from' date
+        let previousBalance = 0;
+        if (from) {
+            const previousEntries = await prisma.ledger.findMany({
+                where: {
+                    transactionDate: {
+                        lt: new Date(from as string),
+                    },
+                    farmerId: farmerId ? Number(farmerId) : undefined,
+                },
+            });
+            previousBalance = previousEntries.reduce(
+                (sum, row) => sum + row.debit - row.credit,
+                0
+            );
+        }
+
+        // Calculate running balance starting from previous balance
+        let balance = previousBalance;
         const dataWithBalance = ledgerData.map((row) => {
             balance += row.debit - row.credit;
             return {
@@ -86,7 +103,7 @@ export const generateLedgerReport = async (
                 filterInfo: {
                     "From": from ? dayjs(from as string).format("DD MMM YYYY") : "N/A",
                     "To": to ? dayjs(to as string).format("DD MMM YYYY") : "N/A",
-                    "Total": ledgerData.length.toString(),
+                    "Total": ledgerData.length.toString()
                 },
             },
             footer: {
@@ -103,72 +120,101 @@ export const generateLedgerReport = async (
         // registerUrduFonts(doc);
 
         // Table - removed separate info section as it's now in header
-        generateTable(
-            doc,
-            {
-                columns: [
-                    {
-                        label: "Date",
-                        key: "transactionDate",
-                        width: 60,
-                        align: "center",
-                        format: (value: any) => dayjs(value).format("DD-MM-YYYY"),
-                    },
-                    {
-                        label: "Description",
-                        key: "description",
-                        width: "*",
-                        align: "left",
-                    },
-                    {
-                        label: "Debit",
-                        key: "debit",
-                        width: 80,
-                        align: "right",
-                        format: (value: any) => (value ? value.toLocaleString() : "-"),
-                    },
-                    {
-                        label: "Credit",
-                        key: "credit",
-                        width: 80,
-                        align: "right",
-                        format: (value: any) => (value ? value.toLocaleString() : "-"),
-                    },
-                    {
-                        label: "Balance",
-                        key: "balance",
-                        width: 80,
-                        align: "right",
-                        format: (value: any) => value.toLocaleString(),
-                    },
-                ],
-                data: dataWithBalance,
-                showHeader: true,
-                headerBackgroundColor: "#333333",
-                headerTextColor: "#ffffff",
-                headerFont: { family: "Helvetica-Bold", size: 10 },
-                bodyFont: { size: 8 },
-                alternateRowColor: false,
-                alternateColor: "#f9f9f9",
-                borderColor: "#cccccc",
-                showTotal: true,
-                totalLabel: "Total",
-                totalColumns: {
-                    debit: totalDebit,
-                    credit: totalCredit,
-                    balance: closingBalance,
-                },
-                totalBackgroundColor: "#e0e0e0",
-                totalFont: { family: "Helvetica-Bold", size: 10 },
-            }
-        );
+        // generateTable(
+        //     doc,
+        //     {
+        //         columns: [
+        //             {
+        //                 label: "Date",
+        //                 key: "transactionDate",
+        //                 width: 60,
+        //                 align: "center",
+        //                 format: (value: any) => dayjs(value).format("DD-MM-YYYY"),
+        //             },
+        //             {
+        //                 label: "Description",
+        //                 key: "description",
+        //                 width: "*",
+        //                 align: "left",
+        //             },
+        //             {
+        //                 label: "Debit",
+        //                 key: "debit",
+        //                 width: 80,
+        //                 align: "right",
+        //                 format: (value: any) => (value ? value.toLocaleString() : "-"),
+        //             },
+        //             {
+        //                 label: "Credit",
+        //                 key: "credit",
+        //                 width: 80,
+        //                 align: "right",
+        //                 format: (value: any) => (value ? value.toLocaleString() : "-"),
+        //             },
+        //             {
+        //                 label: "Balance",
+        //                 key: "balance",
+        //                 width: 80,
+        //                 align: "right",
+        //                 format: (value: any) => value.toLocaleString(),
+        //             },
+        //         ],
+        //         data: dataWithBalance,
+        //         showHeader: true,
+        //         headerBackgroundColor: "#333333",
+        //         headerTextColor: "#ffffff",
+        //         headerFont: { family: "Helvetica-Bold", size: 10 },
+        //         bodyFont: { size: 8 },
+        //         alternateRowColor: false,
+        //         alternateColor: "#f9f9f9",
+        //         borderColor: "#cccccc",
+        //         showTotal: true,
+        //         totalLabel: "Total",
+        //         totalColumns: {
+        //             debit: totalDebit,
+        //             credit: totalCredit,
+        //             balance: closingBalance,
+        //         },
+        //         totalBackgroundColor: "#e0e0e0",
+        //         totalFont: { family: "Helvetica-Bold", size: 10 },
+        //     }
+        // );
+
+        doc.x = doc.page.margins.left;
+
+        const table = doc.table({
+            columnStyles: [50, "*", 50, 50, 50]
+        })
+        table.row([
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Description", align: { x: "left", y: "center" } },
+            { text: "Debit", align: { x: "right", y: "center" } },
+            { text: "Credit", align: { x: "right", y: "center" } },
+            { text: "Balance", align: { x: "right", y: "center" } },
+        ]);
+        table.row([
+            { text: "Opening Balance", colSpan: 4, align: { x: "justify", y: "center" } },
+            { text: previousBalance ? previousBalance.toLocaleString() : "-", align: { x: "right", y: "center" } },
+        ]);
+        dataWithBalance.forEach((row) => {
+            table.row([
+                dayjs(row.transactionDate).format("DD-MM-YYYY"),
+                row.description,
+                { text: row.debit ? row.debit.toLocaleString() : "-", align: { x: "right", y: "center" } },
+                { text: row.credit ? row.credit.toLocaleString() : "-", align: { x: "right", y: "center" } },
+                { text: row.balance.toLocaleString(), align: { x: "right", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Total", colSpan: 2, align: { x: "justify", y: "center" } },
+            { text: totalDebit ? totalDebit.toLocaleString() : "-", align: { x: "right", y: "center" }, },
+            { text: totalCredit ? totalCredit.toLocaleString() : "-", align: { x: "right", y: "center" } },
+            { text: closingBalance ? closingBalance.toLocaleString() : "-", align: { x: "right", y: "center" } },
+        ]);
+        table.end();
 
         pdfGen.moveDown(1);
-
-        // // Summary Section
-        // const openingBalance = dataWithBalance.length > 0
-        //     ? dataWithBalance[0].balance - dataWithBalance[0].debit + dataWithBalance[0].credit
-        //     : 0;
 
         // generateInfoSection(
         //     doc,

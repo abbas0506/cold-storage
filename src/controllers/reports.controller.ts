@@ -4,8 +4,6 @@ import path from "path";
 import { prisma } from "../prisma/prisma";
 import { createPDFGenerator, getReportFontTheme } from "../utils/pdf";
 import {
-    generateInfoSection,
-    generateTable,
     generateSignatureSection,
 } from "../utils/pdf/pdfkit-components";
 
@@ -121,39 +119,45 @@ export const storeSummaryReport = async (req: Request, res: Response): Promise<v
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "Store Name", key: "name", width: "*", align: "left" },
-                { label: "Address", key: "address", width: 100, align: "left" },
-                { label: "Rooms", key: "rooms", width: 45, align: "center" },
-                { label: "Capacity", key: "totalCapacity", width: 60, align: "right", format: fmtCurrency },
-                { label: "Stock", key: "currentStock", width: 55, align: "right", format: fmtCurrency },
-                { label: "Util %", key: "utilization", width: 50, align: "center" },
-                { label: "Farmers", key: "farmersCount", width: 50, align: "center" },
-                { label: "Active Contracts", key: "activeContracts", width: 60, align: "center" },
-                { label: "Monthly Rev.", key: "monthlyRevenue", width: 80, align: "right", format: fmtCurrency },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#333333",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#f5f5f5",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Grand Total",
-            totalColumns: {
-                totalCapacity: fmtCurrency(totals.totalCapacity),
-                currentStock: fmtCurrency(totals.currentStock),
-                farmersCount: totals.farmersCount.toString(),
-                activeContracts: totals.activeContracts.toString(),
-                monthlyRevenue: fmtCurrency(totals.monthlyRevenue),
-            },
-            totalBackgroundColor: "#e0e0e0",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: ["*", 100, 45, 60, 55, 50, 50, 60, 80],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "Store Name", align: { x: "left", y: "center" } },
+            { text: "Address", align: { x: "left", y: "center" } },
+            { text: "Rooms", align: { x: "center", y: "center" } },
+            { text: "Capacity", align: { x: "right", y: "center" } },
+            { text: "Stock", align: { x: "right", y: "center" } },
+            { text: "Util %", align: { x: "center", y: "center" } },
+            { text: "Farmers", align: { x: "center", y: "center" } },
+            { text: "Active Contracts", align: { x: "center", y: "center" } },
+            { text: "Monthly Rev.", align: { x: "right", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                row.name,
+                row.address,
+                { text: String(row.rooms), align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.totalCapacity), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.currentStock), align: { x: "right", y: "center" } },
+                { text: row.utilization, align: { x: "center", y: "center" } },
+                { text: String(row.farmersCount), align: { x: "center", y: "center" } },
+                { text: String(row.activeContracts), align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.monthlyRevenue), align: { x: "right", y: "center" } },
+            ]);
+        });
+        table.row([
+            { text: "Grand Total", colSpan: 3, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totals.totalCapacity), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(totals.currentStock), align: { x: "right", y: "center" } },
+            { text: "", align: { x: "center", y: "center" } },
+            { text: totals.farmersCount.toString(), align: { x: "center", y: "center" } },
+            { text: totals.activeContracts.toString(), align: { x: "center", y: "center" } },
+            { text: fmtCurrency(totals.monthlyRevenue), align: { x: "right", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `store-summary-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -206,39 +210,46 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "Room", key: "roomName", width: "*", align: "left" },
-                { label: "Floors", key: "floors", width: 45, align: "center" },
-                { label: "Racks", key: "racks", width: 45, align: "center" },
-                { label: "Room Cap.", key: "roomCapacity", width: 65, align: "right", format: fmtCurrency },
-                { label: "Rack Cap.", key: "rackCapacity", width: 65, align: "right", format: fmtCurrency },
-                { label: "Current", key: "currentStock", width: 60, align: "right", format: fmtCurrency },
-                { label: "Available", key: "available", width: 60, align: "right", format: fmtCurrency },
-                { label: "Util %", key: "utilization", width: 50, align: "center" },
-                { label: "Temp Range", key: "tempRange", width: 80, align: "center" },
-                { label: "Status", key: "status", width: 50, align: "center" },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#2c3e50",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#f0f8ff",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Total",
-            totalColumns: {
-                roomCapacity: fmtCurrency(rows.reduce((s, r) => s + r.roomCapacity, 0)),
-                rackCapacity: fmtCurrency(rows.reduce((s, r) => s + r.rackCapacity, 0)),
-                currentStock: fmtCurrency(rows.reduce((s, r) => s + r.currentStock, 0)),
-                available: fmtCurrency(rows.reduce((s, r) => s + r.available, 0)),
-            },
-            totalBackgroundColor: "#e0e0e0",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: ["*", 45, 45, 65, 65, 60, 60, 50, 80, 50],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "Room", align: { x: "left", y: "center" } },
+            { text: "Floors", align: { x: "center", y: "center" } },
+            { text: "Racks", align: { x: "center", y: "center" } },
+            { text: "Room Cap.", align: { x: "right", y: "center" } },
+            { text: "Rack Cap.", align: { x: "right", y: "center" } },
+            { text: "Current", align: { x: "right", y: "center" } },
+            { text: "Available", align: { x: "right", y: "center" } },
+            { text: "Util %", align: { x: "center", y: "center" } },
+            { text: "Temp Range", align: { x: "center", y: "center" } },
+            { text: "Status", align: { x: "center", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                row.roomName,
+                { text: String(row.floors), align: { x: "center", y: "center" } },
+                { text: String(row.racks), align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.roomCapacity), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.rackCapacity), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.currentStock), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.available), align: { x: "right", y: "center" } },
+                { text: row.utilization, align: { x: "center", y: "center" } },
+                { text: row.tempRange, align: { x: "center", y: "center" } },
+                { text: row.status, align: { x: "center", y: "center" } },
+            ]);
+        });
+        table.row([
+            { text: "Total", colSpan: 3, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.roomCapacity, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.rackCapacity, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.currentStock, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.available, 0)), align: { x: "right", y: "center" } },
+            { text: "", colSpan: 3, align: { x: "center", y: "center" } },
+        ]);
+        table.end();
 
         // Rack detail per room
         for (const room of store.rooms) {
@@ -258,24 +269,28 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
                     : "0%",
             }));
 
-            generateTable(doc2, {
-                columns: [
-                    { label: "Rack Name", key: "rackName", width: "*", align: "left" },
-                    { label: "Capacity", key: "capacity", width: 80, align: "right", format: fmtCurrency },
-                    { label: "Current Stock", key: "currentStock", width: 80, align: "right", format: fmtCurrency },
-                    { label: "Available", key: "available", width: 80, align: "right", format: fmtCurrency },
-                    { label: "Utilization", key: "utilization", width: 80, align: "center" },
-                ],
-                data: rackRows,
-                showHeader: true,
-                headerBackgroundColor: "#34495e",
-                headerTextColor: "#ffffff",
-                headerFont: { family: "Helvetica-Bold", size: 9 },
-                bodyFont: { size: 8 },
-                alternateRowColor: true,
-                alternateColor: "#f9f9f9",
-                borderColor: "#cccccc",
+            doc2.x = doc2.page.margins.left;
+            const rackTable = doc2.table({
+                columnStyles: ["*", 80, 80, 80, 80],
+                rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
             });
+            rackTable.row([
+                { text: "Rack Name", align: { x: "left", y: "center" } },
+                { text: "Capacity", align: { x: "right", y: "center" } },
+                { text: "Current Stock", align: { x: "right", y: "center" } },
+                { text: "Available", align: { x: "right", y: "center" } },
+                { text: "Utilization", align: { x: "center", y: "center" } },
+            ]);
+            rackRows.forEach((rack) => {
+                rackTable.row([
+                    rack.rackName,
+                    { text: fmtCurrency(rack.capacity), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(rack.currentStock), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(rack.available), align: { x: "right", y: "center" } },
+                    { text: rack.utilization, align: { x: "center", y: "center" } },
+                ]);
+            });
+            rackTable.end();
         }
 
         await pdfGen.sendToResponse(res, `room-occupancy-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
@@ -356,36 +371,40 @@ export const stockInventoryReport = async (req: Request, res: Response): Promise
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "Room", key: "room", width: 80, align: "left" },
-                { label: "Rack", key: "rack", width: 80, align: "left" },
-                { label: "Item", key: "item", width: "*", align: "left" },
-                { label: "Farmer", key: "farmer", width: 100, align: "left" },
-                { label: "Contract", key: "contract", width: 80, align: "center" },
-                { label: "Capacity", key: "capacity", width: 60, align: "right", format: fmtCurrency },
-                { label: "Stock", key: "currentStock", width: 55, align: "right", format: fmtCurrency },
-                { label: "Available", key: "available", width: 60, align: "right", format: fmtCurrency },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#1a5276",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#eaf2f8",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Grand Total",
-            totalColumns: {
-                capacity: fmtCurrency(totalCapacity),
-                currentStock: fmtCurrency(totalStock),
-                available: fmtCurrency(totalCapacity - totalStock),
-            },
-            totalBackgroundColor: "#d5e8d4",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [80, 80, "*", 100, 80, 60, 55, 60],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "Room", align: { x: "left", y: "center" } },
+            { text: "Rack", align: { x: "left", y: "center" } },
+            { text: "Item", align: { x: "left", y: "center" } },
+            { text: "Farmer", align: { x: "left", y: "center" } },
+            { text: "Contract", align: { x: "center", y: "center" } },
+            { text: "Capacity", align: { x: "right", y: "center" } },
+            { text: "Stock", align: { x: "right", y: "center" } },
+            { text: "Available", align: { x: "right", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                row.room,
+                row.rack,
+                row.item,
+                row.farmer,
+                { text: row.contract, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.capacity), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.currentStock), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.available), align: { x: "right", y: "center" } },
+            ]);
+        });
+        table.row([
+            { text: "Grand Total", colSpan: 5, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totalCapacity), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(totalStock), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(totalCapacity - totalStock), align: { x: "right", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `stock-inventory-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -457,37 +476,43 @@ export const stockMovementReport = async (req: Request, res: Response): Promise<
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 30, align: "center" },
-                { label: "Date", key: "date", width: 70, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-                { label: "Type", key: "type", width: 40, align: "center" },
-                { label: "Item", key: "item", width: "*", align: "left" },
-                { label: "Farmer", key: "farmer", width: 90, align: "left" },
-                { label: "Contract", key: "contract", width: 80, align: "center" },
-                { label: "Room", key: "room", width: 60, align: "center" },
-                { label: "Rack", key: "rack", width: 60, align: "center" },
-                { label: "Qty", key: "quantity", width: 50, align: "right", format: fmtCurrency },
-                { label: "Note", key: "note", width: 80, align: "left" },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#2c3e50",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 8 },
-            bodyFont: { size: 7 },
-            alternateRowColor: true,
-            alternateColor: "#f9f9f9",
-            borderColor: "#cccccc",
-            rowHeight: 20,
-            showTotal: true,
-            totalLabel: "Total",
-            totalColumns: {
-                quantity: `IN: ${fmtCurrency(totalIn)} | OUT: ${fmtCurrency(totalOut)}`,
-            },
-            totalBackgroundColor: "#e0e0e0",
-            totalFont: { family: "Helvetica-Bold", size: 8 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [30, 70, 40, "*", 90, 80, 60, 60, 50, 80],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Type", align: { x: "center", y: "center" } },
+            { text: "Item", align: { x: "left", y: "center" } },
+            { text: "Farmer", align: { x: "left", y: "center" } },
+            { text: "Contract", align: { x: "center", y: "center" } },
+            { text: "Room", align: { x: "center", y: "center" } },
+            { text: "Rack", align: { x: "center", y: "center" } },
+            { text: "Qty", align: { x: "right", y: "center" } },
+            { text: "Note", align: { x: "left", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.date, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                { text: row.type, align: { x: "center", y: "center" } },
+                { text: row.item, align: { x: "left", y: "center" } },
+                { text: row.farmer, align: { x: "left", y: "center" } },
+                { text: row.contract, align: { x: "center", y: "center" } },
+                { text: row.room, align: { x: "center", y: "center" } },
+                { text: row.rack, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.quantity), align: { x: "right", y: "center" } },
+                { text: row.note, align: { x: "left", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Total", colSpan: 8, align: { x: "justify", y: "center" } },
+            { text: `IN: ${fmtCurrency(totalIn)} | OUT: ${fmtCurrency(totalOut)}`, colSpan: 2, align: { x: "right", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `stock-movements-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -560,55 +585,73 @@ export const revenueReport = async (req: Request, res: Response): Promise<void> 
         const doc = pdfGen.getDocument();
 
         // Summary section
-        generateInfoSection(doc, {
-            data: {
-                "Total Net Revenue": fmtCurrency(totalNet),
-                "Total Tax Collected": fmtCurrency(totalTax),
-                "Total Gross Revenue": fmtCurrency(totalAmount),
-                "Total Payments Received": fmtCurrency(totalPayments),
-                "Outstanding Balance": fmtCurrency(totalAmount - totalPayments),
-                "Collection Rate": totalAmount > 0 ? ((totalPayments / totalAmount) * 100).toFixed(1) + "%" : "0%",
-            },
-            columns: 3,
-            backgroundColor: "#f0faf0",
-            borderColor: "#27ae60",
-            labelFont: { family: "Helvetica-Bold", size: 9 },
-            valueFont: { family: "Helvetica-Bold", size: 9, color: "#1a5276" },
+        doc.x = doc.page.margins.left;
+        const summaryTable = doc.table({
+            columnStyles: ["*", "*", "*"],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        summaryTable.row([
+            { text: "Total Net Revenue", align: { x: "left", y: "center" } },
+            { text: "Total Tax Collected", align: { x: "left", y: "center" } },
+            { text: "Total Gross Revenue", align: { x: "left", y: "center" } },
+        ]);
+        summaryTable.row([
+            { text: fmtCurrency(totalNet), align: { x: "left", y: "center" } },
+            { text: fmtCurrency(totalTax), align: { x: "left", y: "center" } },
+            { text: fmtCurrency(totalAmount), align: { x: "left", y: "center" } },
+        ]);
+        summaryTable.row([
+            { text: "Total Payments Received", align: { x: "left", y: "center" } },
+            { text: "Outstanding Balance", align: { x: "left", y: "center" } },
+            { text: "Collection Rate", align: { x: "left", y: "center" } },
+        ]);
+        summaryTable.row([
+            { text: fmtCurrency(totalPayments), align: { x: "left", y: "center" } },
+            { text: fmtCurrency(totalAmount - totalPayments), align: { x: "left", y: "center" } },
+            { text: totalAmount > 0 ? ((totalPayments / totalAmount) * 100).toFixed(1) + "%" : "0%", align: { x: "left", y: "center" } },
+        ]);
+        summaryTable.end();
 
         pdfGen.moveDown(0.5);
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 30, align: "center" },
-                { label: "Date", key: "date", width: 70, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-                { label: "Contract", key: "contractCode", width: 90, align: "center" },
-                { label: "Farmer", key: "farmer", width: "*", align: "left" },
-                { label: "Status", key: "status", width: 60, align: "center" },
-                { label: "Net Amount", key: "netAmount", width: 80, align: "right", format: fmtCurrency },
-                { label: "Tax %", key: "taxRate", width: 45, align: "center" },
-                { label: "Tax Amt", key: "taxAmount", width: 70, align: "right", format: fmtCurrency },
-                { label: "Total", key: "totalAmount", width: 80, align: "right", format: fmtCurrency },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#1a6b3c",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#f0faf0",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Grand Total",
-            totalColumns: {
-                netAmount: fmtCurrency(totalNet),
-                taxAmount: fmtCurrency(totalTax),
-                totalAmount: fmtCurrency(totalAmount),
-            },
-            totalBackgroundColor: "#d5e8d4",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [30, 70, 90, "*", 60, 80, 45, 70, 80],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Contract", align: { x: "center", y: "center" } },
+            { text: "Farmer", align: { x: "left", y: "center" } },
+            { text: "Status", align: { x: "center", y: "center" } },
+            { text: "Net Amount", align: { x: "right", y: "center" } },
+            { text: "Tax %", align: { x: "center", y: "center" } },
+            { text: "Tax Amt", align: { x: "right", y: "center" } },
+            { text: "Total", align: { x: "right", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.date, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                { text: row.contractCode, align: { x: "center", y: "center" } },
+                { text: row.farmer, align: { x: "left", y: "center" } },
+                { text: row.status, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.netAmount), align: { x: "right", y: "center" } },
+                { text: row.taxRate, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.taxAmount), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.totalAmount), align: { x: "right", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Grand Total", colSpan: 5, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totalNet), align: { x: "right", y: "center" } },
+            { text: "", align: { x: "center", y: "center" } },
+            { text: fmtCurrency(totalTax), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(totalAmount), align: { x: "right", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `revenue-report-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -671,40 +714,48 @@ export const contractsReport = async (req: Request, res: Response): Promise<void
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 25, align: "center" },
-                { label: "Code", key: "contractCode", width: 80, align: "center" },
-                { label: "Farmer", key: "farmer", width: 80, align: "left" },
-                { label: "Phone", key: "phone", width: 70, align: "center" },
-                { label: "Start", key: "startDate", width: 65, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-                { label: "End", key: "endDate", width: 65, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-                { label: "Items", key: "items", width: "*", align: "left" },
-                { label: "Qty", key: "totalQty", width: 40, align: "right", format: fmtCurrency },
-                { label: "Net Amt", key: "netAmount", width: 65, align: "right", format: fmtCurrency },
-                { label: "Total Amt", key: "totalAmount", width: 65, align: "right", format: fmtCurrency },
-                { label: "Status", key: "status", width: 55, align: "center" },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#2c3e50",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 8 },
-            bodyFont: { size: 7 },
-            alternateRowColor: true,
-            alternateColor: "#f9f9f9",
-            borderColor: "#cccccc",
-            rowHeight: 20,
-            showTotal: true,
-            totalLabel: "Total",
-            totalColumns: {
-                totalQty: fmtCurrency(rows.reduce((s, r) => s + r.totalQty, 0)),
-                netAmount: fmtCurrency(contracts.reduce((s, c) => s + c.netAmount, 0)),
-                totalAmount: fmtCurrency(contracts.reduce((s, c) => s + c.totalAmount, 0)),
-            },
-            totalBackgroundColor: "#e0e0e0",
-            totalFont: { family: "Helvetica-Bold", size: 8 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [25, 80, 80, 70, 65, 65, "*", 40, 65, 65, 55],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Code", align: { x: "center", y: "center" } },
+            { text: "Farmer", align: { x: "left", y: "center" } },
+            { text: "Phone", align: { x: "center", y: "center" } },
+            { text: "Start", align: { x: "center", y: "center" } },
+            { text: "End", align: { x: "center", y: "center" } },
+            { text: "Items", align: { x: "left", y: "center" } },
+            { text: "Qty", align: { x: "right", y: "center" } },
+            { text: "Net Amt", align: { x: "right", y: "center" } },
+            { text: "Total Amt", align: { x: "right", y: "center" } },
+            { text: "Status", align: { x: "center", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: row.contractCode, align: { x: "center", y: "center" } },
+                { text: row.farmer, align: { x: "left", y: "center" } },
+                { text: row.phone, align: { x: "center", y: "center" } },
+                { text: fmtDate(row.startDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.endDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+                { text: row.items, align: { x: "left", y: "center" } },
+                { text: fmtCurrency(row.totalQty), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.netAmount), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.totalAmount), align: { x: "right", y: "center" } },
+                { text: row.status, align: { x: "center", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Total", colSpan: 7, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.totalQty, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(contracts.reduce((s, c) => s + c.netAmount, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(contracts.reduce((s, c) => s + c.totalAmount, 0)), align: { x: "right", y: "center" } },
+            { text: "", align: { x: "center", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `contracts-report-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -777,43 +828,55 @@ export const paymentsReport = async (req: Request, res: Response): Promise<void>
             methodSummary[m] = fmtCurrency(v);
         });
 
-        generateInfoSection(doc, {
-            data: methodSummary,
-            columns: Math.min(Object.keys(methodSummary).length, 4),
-            backgroundColor: "#fff8e1",
-            borderColor: "#f9a825",
-            labelFont: { family: "Helvetica-Bold", size: 9 },
-            valueFont: { family: "Helvetica-Bold", size: 9, color: "#e65100" },
-        });
+        const methodEntries = Object.entries(methodSummary);
+        const methodCols = Math.min(methodEntries.length, 4);
+        const methodColStyles: ("*" | number)[] = Array(methodCols).fill("*");
+        doc.x = doc.page.margins.left;
+        const methodInfoTable = doc.table({ columnStyles: methodColStyles });
+        for (let i = 0; i < methodEntries.length; i += methodCols) {
+            const chunk = methodEntries.slice(i, i + methodCols);
+            while (chunk.length < methodCols) chunk.push(["", ""]);
+            methodInfoTable.row(chunk.map(([label]) => ({ text: label, align: { x: "left" as const, y: "center" as const } })));
+            methodInfoTable.row(chunk.map(([, value]) => ({ text: value, align: { x: "left" as const, y: "center" as const } })));
+        }
+        methodInfoTable.end();
 
         pdfGen.moveDown(0.5);
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 30, align: "center" },
-                { label: "Date", key: "date", width: 70, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-                { label: "Farmer", key: "farmer", width: "*", align: "left" },
-                { label: "Phone", key: "phone", width: 80, align: "center" },
-                { label: "Amount", key: "amount", width: 80, align: "right", format: fmtCurrency },
-                { label: "Method", key: "method", width: 70, align: "center" },
-                { label: "Ref #", key: "transactionRef", width: 80, align: "center" },
-                { label: "Remarks", key: "remarks", width: 80, align: "left" },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#e65100",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#fff8e1",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Grand Total",
-            totalColumns: { amount: fmtCurrency(totalAmount) },
-            totalBackgroundColor: "#ffe0b2",
-            totalFont: { family: "Helvetica-Bold", size: 10 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [30, 70, "*", 80, 80, 70, 80, 80],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Farmer", align: { x: "left", y: "center" } },
+            { text: "Phone", align: { x: "center", y: "center" } },
+            { text: "Amount", align: { x: "right", y: "center" } },
+            { text: "Method", align: { x: "center", y: "center" } },
+            { text: "Ref #", align: { x: "center", y: "center" } },
+            { text: "Remarks", align: { x: "left", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.date, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                { text: row.farmer, align: { x: "left", y: "center" } },
+                { text: row.phone, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.amount), align: { x: "right", y: "center" } },
+                { text: row.method, align: { x: "center", y: "center" } },
+                { text: row.transactionRef, align: { x: "center", y: "center" } },
+                { text: row.remarks, align: { x: "left", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Grand Total", colSpan: 4, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totalAmount), align: { x: "right", y: "center" } },
+            { text: "", colSpan: 3, align: { x: "center", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `payments-report-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -835,7 +898,7 @@ export const outstandingDuesReport = async (req: Request, res: Response): Promis
         const farmers = await prisma.farmer.findMany({
             where: { storeId },
             include: {
-                ledgers: { orderBy: { id: "desc" }, take: 1 },
+                ledgers: { select: { debit: true, credit: true } },
                 contracts: { where: { status: "ACTIVE" } },
             },
         });
@@ -843,8 +906,7 @@ export const outstandingDuesReport = async (req: Request, res: Response): Promis
         // Only farmers with outstanding balance (balance > 0 means they owe)
         const rows = farmers
             .map((f) => {
-                const lastLedger = f.ledgers[0];
-                const balance = lastLedger?.balance || 0;
+                const balance = f.ledgers.reduce((s, l) => s + l.debit - l.credit, 0);
                 return {
                     farmerId: f.id,
                     name: f.name,
@@ -864,52 +926,68 @@ export const outstandingDuesReport = async (req: Request, res: Response): Promis
         const pdfGen = createPDFGenerator(
             pdfConfig("Outstanding Dues Report", `Store: ${store.name}`, {
                 "Store": store.name,
-                "Farmers with Dues": rows.length,
-                "Total Outstanding": fmtCurrency(totalOutstanding),
+                "Farmers": rows.length,
+                "Outstanding": fmtCurrency(totalOutstanding),
             })
         );
         const doc = pdfGen.getDocument();
 
-        generateInfoSection(doc, {
-            data: {
-                "Total Farmers with Dues": rows.length.toString(),
-                "Total Outstanding Amount": fmtCurrency(totalOutstanding),
-                "Average Outstanding": rows.length > 0 ? fmtCurrency(totalOutstanding / rows.length) : "0",
-                "Highest Due": rows.length > 0 ? fmtCurrency(rows[0].balance) : "0",
-            },
-            columns: 2,
-            backgroundColor: "#fce4ec",
-            borderColor: "#c62828",
-            labelFont: { family: "Helvetica-Bold", size: 9 },
-            valueFont: { family: "Helvetica-Bold", size: 9, color: "#b71c1c" },
+        doc.x = doc.page.margins.left;
+        const duesInfoTable = doc.table({
+            columnStyles: ["*", "*"],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        duesInfoTable.row([
+            { text: "Total Farmers", align: { x: "left", y: "center" } },
+            { text: "Total Outstanding", align: { x: "left", y: "center" } },
+        ]);
+        duesInfoTable.row([
+            { text: rows.length.toString(), align: { x: "left", y: "center" } },
+            { text: fmtCurrency(totalOutstanding), align: { x: "left", y: "center" } },
+        ]);
+        duesInfoTable.row([
+            { text: "Average Outstanding", align: { x: "left", y: "center" } },
+            { text: "Highest Due", align: { x: "left", y: "center" } },
+        ]);
+        duesInfoTable.row([
+            { text: rows.length > 0 ? fmtCurrency(totalOutstanding / rows.length) : "0", align: { x: "left", y: "center" } },
+            { text: rows.length > 0 ? fmtCurrency(rows[0].balance) : "0", align: { x: "left", y: "center" } },
+        ]);
+        duesInfoTable.end();
 
         pdfGen.moveDown(0.5);
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "farmerId", width: 30, align: "center" },
-                { label: "Farmer Name", key: "name", width: "*", align: "left" },
-                { label: "Phone", key: "phone", width: 80, align: "center" },
-                { label: "CNIC", key: "cnic", width: 90, align: "center" },
-                { label: "Active Contracts", key: "activeContracts", width: 55, align: "center" },
-                { label: "Outstanding Amt", key: "balance", width: 90, align: "right", format: fmtCurrency },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#c62828",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#ffebee",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Grand Total",
-            totalColumns: { balance: fmtCurrency(totalOutstanding) },
-            totalBackgroundColor: "#ffcdd2",
-            totalFont: { family: "Helvetica-Bold", size: 10 },
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [30, "*", 80, 90, 55, 90],
+            rowStyles: (row) => {
+                if (row == 0) return { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" };
+            }
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Farmer Name", align: { x: "left", y: "center" } },
+            { text: "Phone", align: { x: "center", y: "center" } },
+            { text: "CNIC", align: { x: "center", y: "center" } },
+            { text: "Contracts", align: { x: "center", y: "center" } },
+            { text: "Outstanding Amount", align: { x: "right", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.farmerId), align: { x: "center", y: "center" } },
+                row.name,
+                { text: row.phone, align: { x: "center", y: "center" } },
+                { text: row.cnic, align: { x: "center", y: "center" } },
+                { text: String(row.activeContracts), align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.balance), align: { x: "right", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Grand Total", colSpan: 5, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totalOutstanding), align: { x: "right", y: "center" } },
+        ]);
+        table.end();
 
         await pdfGen.sendToResponse(res, `outstanding-dues-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -950,25 +1028,30 @@ export const ratePlansReport = async (req: Request, res: Response): Promise<void
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 30, align: "center" },
-                { label: "Packaging Type", key: "packagingType", width: "*", align: "left" },
-                { label: "Rate Type", key: "rateType", width: 100, align: "center" },
-                { label: "Rate Amount", key: "rateAmount", width: 100, align: "right", format: fmtCurrency },
-                { label: "Created", key: "createdAt", width: 90, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-                { label: "Updated", key: "updatedAt", width: 90, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#6a1b9a",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 10 },
-            bodyFont: { size: 9 },
-            alternateRowColor: true,
-            alternateColor: "#f3e5f5",
-            borderColor: "#cccccc",
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [30, "*", 100, 100, 90, 90],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Packaging Type", align: { x: "left", y: "center" } },
+            { text: "Rate Type", align: { x: "center", y: "center" } },
+            { text: "Rate Amount", align: { x: "right", y: "center" } },
+            { text: "Created", align: { x: "center", y: "center" } },
+            { text: "Updated", align: { x: "center", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: row.packagingType, align: { x: "left", y: "center" } },
+                { text: row.rateType, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.rateAmount), align: { x: "right", y: "center" } },
+                { text: fmtDate(row.createdAt, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.updatedAt, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+            ]);
+        });
+        table.end();
 
         await pdfGen.sendToResponse(res, `rate-plans-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -1033,27 +1116,34 @@ export const expiringContractsReport = async (req: Request, res: Response): Prom
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 25, align: "center" },
-                { label: "Contract", key: "contractCode", width: 80, align: "center" },
-                { label: "Farmer", key: "farmer", width: "*", align: "left" },
-                { label: "Phone", key: "phone", width: 75, align: "center" },
-                { label: "Start", key: "startDate", width: 65, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-                { label: "End", key: "endDate", width: 65, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-                { label: "Time Left", key: "daysLeft", width: 65, align: "center" },
-                { label: "Amount", key: "totalAmount", width: 70, align: "right", format: fmtCurrency },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#e65100",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#fff3e0",
-            borderColor: "#cccccc",
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [25, 80, "*", 75, 65, 65, 65, 70],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Contract", align: { x: "center", y: "center" } },
+            { text: "Farmer", align: { x: "left", y: "center" } },
+            { text: "Phone", align: { x: "center", y: "center" } },
+            { text: "Start", align: { x: "center", y: "center" } },
+            { text: "End", align: { x: "center", y: "center" } },
+            { text: "Time Left", align: { x: "center", y: "center" } },
+            { text: "Amount", align: { x: "right", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: row.contractCode, align: { x: "center", y: "center" } },
+                { text: row.farmer, align: { x: "left", y: "center" } },
+                { text: row.phone, align: { x: "center", y: "center" } },
+                { text: fmtDate(row.startDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.endDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+                { text: row.daysLeft, align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.totalAmount), align: { x: "right", y: "center" } },
+            ]);
+        });
+        table.end();
 
         await pdfGen.sendToResponse(res, `expiring-contracts-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -1076,15 +1166,15 @@ export const farmerDirectoryReport = async (req: Request, res: Response): Promis
             where: { storeId },
             include: {
                 contracts: true,
-                ledgers: { orderBy: { id: "desc" }, take: 1 },
+                ledgers: { select: { debit: true, credit: true } },
                 payments: true,
             },
             orderBy: { name: "asc" },
         });
 
         const rows = farmers.map((f, i) => {
-            const lastLedger = f.ledgers[0];
             const totalPaid = f.payments.reduce((s, p) => s + p.amount, 0);
+            const balance = f.ledgers.reduce((s, l) => s + l.debit - l.credit, 0);
             return {
                 sno: i + 1,
                 name: f.name,
@@ -1095,7 +1185,7 @@ export const farmerDirectoryReport = async (req: Request, res: Response): Promis
                 totalContracts: f.contracts.length,
                 activeContracts: f.contracts.filter((c) => c.status === "ACTIVE").length,
                 totalPaid,
-                balance: lastLedger?.balance || 0,
+                balance,
                 joinedDate: f.createdAt,
             };
         });
@@ -1108,30 +1198,39 @@ export const farmerDirectoryReport = async (req: Request, res: Response): Promis
         );
         const doc = pdfGen.getDocument();
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 25, align: "center" },
-                { label: "Name", key: "name", width: "*", align: "left" },
-                { label: "Phone", key: "phone", width: 75, align: "center" },
-                { label: "CNIC", key: "cnic", width: 85, align: "center" },
-                { label: "Marka", key: "marka", width: 55, align: "center" },
-                { label: "Contracts", key: "totalContracts", width: 45, align: "center" },
-                { label: "Active", key: "activeContracts", width: 40, align: "center" },
-                { label: "Total Paid", key: "totalPaid", width: 70, align: "right", format: fmtCurrency },
-                { label: "Balance", key: "balance", width: 70, align: "right", format: fmtCurrency },
-                { label: "Joined", key: "joinedDate", width: 65, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-            ],
-            data: rows,
-            showHeader: true,
-            headerBackgroundColor: "#0d47a1",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 8 },
-            bodyFont: { size: 7 },
-            alternateRowColor: true,
-            alternateColor: "#e3f2fd",
-            borderColor: "#cccccc",
-            rowHeight: 20,
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles:
+                [25, "*", 75, 85, 55, 45, 40, 70, 70, 65],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Name", align: { x: "left", y: "center" } },
+            { text: "Phone", align: { x: "center", y: "center" } },
+            { text: "CNIC", align: { x: "center", y: "center" } },
+            { text: "Marka", align: { x: "center", y: "center" } },
+            { text: "Contracts", align: { x: "center", y: "center" } },
+            { text: "Active", align: { x: "center", y: "center" } },
+            { text: "Total Paid", align: { x: "right", y: "center" } },
+            { text: "Balance", align: { x: "right", y: "center" } },
+            { text: "Joined", align: { x: "center", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: row.name, align: { x: "left", y: "center" } },
+                { text: row.phone, align: { x: "center", y: "center" } },
+                { text: row.cnic, align: { x: "center", y: "center" } },
+                { text: row.marka, align: { x: "center", y: "center" } },
+                { text: String(row.totalContracts), align: { x: "center", y: "center" } },
+                { text: String(row.activeContracts), align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.totalPaid), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.balance), align: { x: "right", y: "center" } },
+                { text: fmtDate(row.joinedDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+            ]);
+        });
+        table.end();
 
         await pdfGen.sendToResponse(res, `farmer-directory-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
     } catch (error) {
@@ -1229,48 +1328,65 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
         const doc = pdfGen.getDocument();
 
         // ── Farmer Info ────────────────────
-        generateInfoSection(doc, {
-            data: {
-                "Farmer Name": farmer.name,
-                "Phone": farmer.phone,
-                "CNIC": farmer.cnic || "N/A",
-                "Address": farmer.address || "N/A",
-                "Marka": farmer.marka || "N/A",
-                "Member Since": dayjs(farmer.createdAt).format("DD MMM YYYY"),
-            },
-            columns: 3,
-            backgroundColor: "#e8f5e9",
-            borderColor: "#2e7d32",
-            labelFont: { family: "Helvetica-Bold", size: 9 },
-            valueFont: { size: 9 },
+        doc.x = doc.page.margins.left;
+        const farmerInfoTable = doc.table({
+            columnStyles: ["*", "*", "*", "*", "*", "*"],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
+
         });
+        farmerInfoTable.row([
+            { text: "Farmer Name", align: { x: "left", y: "center" } },
+            { text: "Phone", align: { x: "left", y: "center" } },
+            { text: "CNIC", align: { x: "left", y: "center" } },
+            { text: "Address", align: { x: "left", y: "center" } },
+            { text: "Marka", align: { x: "left", y: "center" } },
+            { text: "Member Since", align: { x: "left", y: "center" } },
+        ]);
+        farmerInfoTable.row([
+            { text: farmer.name, align: { x: "left", y: "center" } },
+            { text: farmer.phone, align: { x: "left", y: "center" } },
+            { text: farmer.cnic || "N/A", align: { x: "left", y: "center" } },
+            { text: farmer.address || "N/A", align: { x: "left", y: "center" } },
+            { text: farmer.marka || "N/A", align: { x: "left", y: "center" } },
+            { text: dayjs(farmer.createdAt).format("DD MMM YYYY"), align: { x: "left", y: "center" } },
+        ]);
+        farmerInfoTable.end();
 
         pdfGen.moveDown(0.5);
 
         // ── Account Summary ────────────────────
-        doc.fontSize(12).font("Helvetica-Bold").fillColor("#333333").text("Account Summary");
         pdfGen.moveDown(0.3);
 
-        generateInfoSection(doc, {
-            data: {
-                "Total Contracts": contracts.length.toString(),
-                "Active Contracts": contracts.filter((c) => c.status === "ACTIVE").length.toString(),
-                "Total Invoiced (Debit)": fmtCurrency(totalDebit),
-                "Total Paid (Credit)": fmtCurrency(totalCredit),
-                "Closing Balance": fmtCurrency(closingBalance),
-                "Total Payments Count": payments.length.toString(),
-            },
-            columns: 3,
-            backgroundColor: "#fff3e0",
-            borderColor: "#f57c00",
-            labelFont: { family: "Helvetica-Bold", size: 9 },
-            valueFont: { family: "Helvetica-Bold", size: 9, color: "#e65100" },
+        doc.x = doc.page.margins.left;
+        const acctSummaryTable = doc.table({
+            columnStyles: ["*", "*", "*"],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        acctSummaryTable.row([
+            { text: "Total Contracts", align: { x: "left", y: "center" } },
+            { text: "Active Contracts", align: { x: "left", y: "center" } },
+            { text: "Total Invoiced (Debit)", align: { x: "left", y: "center" } },
+        ]);
+        acctSummaryTable.row([
+            { text: contracts.length.toString(), align: { x: "left", y: "center" } },
+            { text: contracts.filter((c) => c.status === "ACTIVE").length.toString(), align: { x: "left", y: "center" } },
+            { text: fmtCurrency(totalDebit), align: { x: "left", y: "center" } },
+        ]);
+        acctSummaryTable.row([
+            { text: "Total Paid (Credit)", align: { x: "left", y: "center" } },
+            { text: "Closing Balance", align: { x: "left", y: "center" } },
+            { text: "Total Payments Count", align: { x: "left", y: "center" } },
+        ]);
+        acctSummaryTable.row([
+            { text: fmtCurrency(totalCredit), align: { x: "left", y: "center" } },
+            { text: fmtCurrency(closingBalance), align: { x: "left", y: "center" } },
+            { text: payments.length.toString(), align: { x: "left", y: "center" } },
+        ]);
+        acctSummaryTable.end();
 
         pdfGen.moveDown(0.5);
 
         // ── Contracts Table ────────────────────
-        doc.fontSize(12).font("Helvetica-Bold").fillColor("#333333").text("Contracts");
         pdfGen.moveDown(0.3);
 
         const contractRows = contracts.map((c, i) => ({
@@ -1285,43 +1401,49 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
             status: c.status,
         }));
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 25, align: "center" },
-                { label: "Code", key: "code", width: 80, align: "center" },
-                { label: "Start", key: "startDate", width: 60, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-                { label: "End", key: "endDate", width: 60, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YY") },
-                { label: "Items", key: "items", width: "*", align: "left" },
-                { label: "Qty", key: "qty", width: 35, align: "right" },
-                { label: "Net Amt", key: "netAmount", width: 65, align: "right", format: fmtCurrency },
-                { label: "Total", key: "totalAmount", width: 65, align: "right", format: fmtCurrency },
-                { label: "Status", key: "status", width: 55, align: "center" },
-            ],
-            data: contractRows,
-            showHeader: true,
-            headerBackgroundColor: "#1565c0",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#e3f2fd",
-            borderColor: "#cccccc",
-            rowHeight: 20,
-            showTotal: true,
-            totalLabel: "Total",
-            totalColumns: {
-                netAmount: fmtCurrency(contracts.reduce((s, c) => s + c.netAmount, 0)),
-                totalAmount: fmtCurrency(contracts.reduce((s, c) => s + c.totalAmount, 0)),
-            },
-            totalBackgroundColor: "#bbdefb",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const contractTable = doc.table({
+            columnStyles: [25, 80, 60, 60, "*", 35, 65, 65, 55],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        contractTable.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Code", align: { x: "center", y: "center" } },
+            { text: "Start", align: { x: "center", y: "center" } },
+            { text: "End", align: { x: "center", y: "center" } },
+            { text: "Items", align: { x: "left", y: "center" } },
+            { text: "Qty", align: { x: "right", y: "center" } },
+            { text: "Net Amt", align: { x: "right", y: "center" } },
+            { text: "Total", align: { x: "right", y: "center" } },
+            { text: "Status", align: { x: "center", y: "center" } },
+        ]);
+        contractRows.forEach((row) => {
+            contractTable.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: row.code, align: { x: "center", y: "center" } },
+                { text: fmtDate(row.startDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.endDate, "DD-MM-YY"), align: { x: "center", y: "center" } },
+                row.items,
+                { text: String(row.qty), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.netAmount), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.totalAmount), align: { x: "right", y: "center" } },
+                { text: row.status, align: { x: "center", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        contractTable.row([
+            { text: "Total", colSpan: 6, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(contracts.reduce((s, c) => s + c.netAmount, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(contracts.reduce((s, c) => s + c.totalAmount, 0)), align: { x: "right", y: "center" } },
+            { text: "", align: { x: "center", y: "center" } },
+        ]);
+        contractTable.end();
 
         pdfGen.moveDown(0.5);
 
         // ── Payments Table ────────────────────
-        doc.fontSize(12).font("Helvetica-Bold").fillColor("#333333").text("Payments");
         pdfGen.moveDown(0.3);
+        doc.fontSize(12).fillColor("#333333").text("Payments", { align: "left" }).moveDown(0.2).fontSize(9);
 
         const paymentRows = payments.map((p, i) => ({
             sno: i + 1,
@@ -1332,63 +1454,71 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
             remarks: p.remarks || "",
         }));
 
-        generateTable(doc, {
-            columns: [
-                { label: "#", key: "sno", width: 30, align: "center" },
-                { label: "Date", key: "date", width: 80, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-                { label: "Amount", key: "amount", width: 90, align: "right", format: fmtCurrency },
-                { label: "Method", key: "method", width: 80, align: "center" },
-                { label: "Ref #", key: "ref", width: "*", align: "center" },
-                { label: "Remarks", key: "remarks", width: 100, align: "left" },
-            ],
-            data: paymentRows,
-            showHeader: true,
-            headerBackgroundColor: "#2e7d32",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: true,
-            alternateColor: "#e8f5e9",
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Total Paid",
-            totalColumns: { amount: fmtCurrency(payments.reduce((s, p) => s + p.amount, 0)) },
-            totalBackgroundColor: "#c8e6c9",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const paymentTable = doc.table({
+            columnStyles: [30, 80, 90, 80, "*", 100],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        paymentTable.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Amount", align: { x: "right", y: "center" } },
+            { text: "Method", align: { x: "center", y: "center" } },
+            { text: "Ref #", align: { x: "center", y: "center" } },
+            { text: "Remarks", align: { x: "left", y: "center" } },
+        ]);
+        paymentRows.forEach((row) => {
+            paymentTable.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.date, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                { text: fmtCurrency(row.amount), align: { x: "right", y: "center" } },
+                { text: row.method, align: { x: "center", y: "center" } },
+                { text: row.ref, align: { x: "center", y: "center" } },
+                row.remarks,
+            ]);
+        });
+        doc.fontSize(9);
+        paymentTable.row([
+            { text: "Total Paid", colSpan: 2, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(payments.reduce((s, p) => s + p.amount, 0)), align: { x: "right", y: "center" } },
+            { text: "", colSpan: 3, align: { x: "center", y: "center" } },
+        ]);
+        paymentTable.end();
 
         pdfGen.moveDown(0.5);
 
         // ── Ledger Table ────────────────────
-        doc.fontSize(12).font("Helvetica-Bold").fillColor("#333333").text("Ledger Transactions");
         pdfGen.moveDown(0.3);
 
-        generateTable(doc, {
-            columns: [
-                { label: "Date", key: "transactionDate", width: 70, align: "center", format: (v: any) => fmtDate(v, "DD-MM-YYYY") },
-                { label: "Description", key: "description", width: "*", align: "left" },
-                { label: "Debit", key: "debit", width: 80, align: "right", format: (v: any) => (v ? fmtCurrency(v) : "-") },
-                { label: "Credit", key: "credit", width: 80, align: "right", format: (v: any) => (v ? fmtCurrency(v) : "-") },
-                { label: "Balance", key: "balance", width: 80, align: "right", format: fmtCurrency },
-            ],
-            data: ledgerRows,
-            showHeader: true,
-            headerBackgroundColor: "#333333",
-            headerTextColor: "#ffffff",
-            headerFont: { family: "Helvetica-Bold", size: 9 },
-            bodyFont: { size: 8 },
-            alternateRowColor: false,
-            borderColor: "#cccccc",
-            showTotal: true,
-            totalLabel: "Total",
-            totalColumns: {
-                debit: fmtCurrency(totalDebit),
-                credit: fmtCurrency(totalCredit),
-                balance: fmtCurrency(closingBalance),
-            },
-            totalBackgroundColor: "#e0e0e0",
-            totalFont: { family: "Helvetica-Bold", size: 9 },
+        doc.x = doc.page.margins.left;
+        const ledgerTable = doc.table({
+            columnStyles: [70, "*", 80, 80, 80],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
+        ledgerTable.row([
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Description", align: { x: "left", y: "center" } },
+            { text: "Debit", align: { x: "right", y: "center" } },
+            { text: "Credit", align: { x: "right", y: "center" } },
+            { text: "Balance", align: { x: "right", y: "center" } },
+        ]);
+        ledgerRows.forEach((row) => {
+            ledgerTable.row([
+                { text: fmtDate(row.transactionDate, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                row.description,
+                { text: row.debit ? fmtCurrency(row.debit) : "-", align: { x: "right", y: "center" } },
+                { text: row.credit ? fmtCurrency(row.credit) : "-", align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.balance), align: { x: "right", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        ledgerTable.row([
+            { text: "Total", colSpan: 2, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totalDebit), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(totalCredit), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(closingBalance), align: { x: "right", y: "center" } },
+        ]);
+        ledgerTable.end();
 
         pdfGen.moveDown(1);
 
@@ -1477,32 +1607,41 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
             if (ci > 0) pdfGen.addPage();
 
             // Contract header
-            doc.fontSize(13).font("Helvetica-Bold").fillColor("#1565c0")
+            doc.fontSize(12).fillColor("#1565c0")
                 .text(`Contract: ${c.contractCode}`, 20, doc.y);
+            doc.fontSize(9).fillColor("#333333")
             pdfGen.moveDown(0.3);
 
-            generateInfoSection(doc, {
-                data: {
-                    "Status": c.status,
-                    "Start Date": fmtDate(c.startDate),
-                    "Expected End": fmtDate(c.expectedEndDate),
-                    "Net Amount": fmtCurrency(c.netAmount),
-                    "Tax": `${(c.saleTaxRate * 100).toFixed(0)}% (${fmtCurrency(c.salesTaxAmount)})`,
-                    "Total Amount": fmtCurrency(c.totalAmount),
-                },
-                columns: 3,
-                backgroundColor: "#e3f2fd",
-                borderColor: "#1565c0",
-                labelFont: { family: "Helvetica-Bold", size: 8 },
-                valueFont: { size: 8 },
-            });
+            doc.x = doc.page.margins.left;
+            const contractInfoTable = doc.table({ columnStyles: ["*", "*", "*"] });
+            contractInfoTable.row([
+                { text: "Status", align: { x: "left", y: "center" } },
+                { text: "Start Date", align: { x: "left", y: "center" } },
+                { text: "Expected End", align: { x: "left", y: "center" } },
+            ]);
+            contractInfoTable.row([
+                { text: c.status, align: { x: "left", y: "center" } },
+                { text: fmtDate(c.startDate), align: { x: "left", y: "center" } },
+                { text: fmtDate(c.expectedEndDate), align: { x: "left", y: "center" } },
+            ]);
+            contractInfoTable.row([
+                { text: "Net Amount", align: { x: "left", y: "center" } },
+                { text: "Tax", align: { x: "left", y: "center" } },
+                { text: "Total Amount", align: { x: "left", y: "center" } },
+            ]);
+            contractInfoTable.row([
+                { text: fmtCurrency(c.netAmount), align: { x: "left", y: "center" } },
+                { text: `${(c.saleTaxRate * 100).toFixed(0)}% (${fmtCurrency(c.salesTaxAmount)})`, align: { x: "left", y: "center" } },
+                { text: fmtCurrency(c.totalAmount), align: { x: "left", y: "center" } },
+            ]);
+            contractInfoTable.end();
 
             pdfGen.moveDown(0.3);
 
             // Items table
-            doc.fontSize(10).font("Helvetica-Bold").fillColor("#333333").text("Contract Items");
+            doc.fontSize(10).fillColor("#333333").text("Contract Items");
             pdfGen.moveDown(0.2);
-
+            doc.fontSize(9).fillColor("#333333");
             const itemRows = c.items.map((line, li) => {
                 const totalIn = line.movements.filter((m) => m.movementType === "IN").reduce((s, m) => s + m.quantity, 0);
                 const totalOut = line.movements.filter((m) => m.movementType === "OUT").reduce((s, m) => s + m.quantity, 0);
@@ -1520,41 +1659,44 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
                 };
             });
 
-            generateTable(doc, {
-                columns: [
-                    { label: "#", key: "sno", width: 20, align: "center" },
-                    { label: "Item", key: "item", width: "*", align: "left" },
-                    { label: "Pkg", key: "packaging", width: 50, align: "center" },
-                    { label: "Qty", key: "quantity", width: 40, align: "right" },
-                    { label: "Rate", key: "unitRate", width: 50, align: "right", format: fmtCurrency },
-                    { label: "Amount", key: "amount", width: 60, align: "right", format: fmtCurrency },
-                    { label: "In", key: "stockIn", width: 35, align: "right" },
-                    { label: "Out", key: "stockOut", width: 35, align: "right" },
-                    { label: "Remaining", key: "remaining", width: 50, align: "right" },
-                    { label: "Late Chg", key: "lateCharges", width: 55, align: "right", format: fmtCurrency },
-                ],
-                data: itemRows,
-                showHeader: true,
-                headerBackgroundColor: "#37474f",
-                headerTextColor: "#ffffff",
-                headerFont: { family: "Helvetica-Bold", size: 8 },
-                bodyFont: { size: 7 },
-                alternateRowColor: true,
-                alternateColor: "#eceff1",
-                borderColor: "#cccccc",
-                rowHeight: 18,
-                showTotal: true,
-                totalLabel: "Total",
-                totalColumns: {
-                    amount: fmtCurrency(itemRows.reduce((s, r) => s + r.amount, 0)),
-                    stockIn: itemRows.reduce((s, r) => s + r.stockIn, 0).toString(),
-                    stockOut: itemRows.reduce((s, r) => s + r.stockOut, 0).toString(),
-                    remaining: itemRows.reduce((s, r) => s + r.remaining, 0).toString(),
-                    lateCharges: fmtCurrency(itemRows.reduce((s, r) => s + r.lateCharges, 0)),
-                },
-                totalBackgroundColor: "#cfd8dc",
-                totalFont: { family: "Helvetica-Bold", size: 8 },
+            doc.x = doc.page.margins.left;
+            const itemTable = doc.table({ columnStyles: [20, "*", 50, 40, 50, 60, 35, 35, 50, 55] });
+            itemTable.row([
+                { text: "#", align: { x: "center", y: "center" } },
+                { text: "Item", align: { x: "left", y: "center" } },
+                { text: "Pkg", align: { x: "center", y: "center" } },
+                { text: "Qty", align: { x: "right", y: "center" } },
+                { text: "Rate", align: { x: "right", y: "center" } },
+                { text: "Amount", align: { x: "right", y: "center" } },
+                { text: "In", align: { x: "right", y: "center" } },
+                { text: "Out", align: { x: "right", y: "center" } },
+                { text: "Remaining", align: { x: "right", y: "center" } },
+                { text: "Late Chg", align: { x: "right", y: "center" } },
+            ]);
+            itemRows.forEach((row) => {
+                itemTable.row([
+                    { text: String(row.sno), align: { x: "center", y: "center" } },
+                    row.item,
+                    { text: row.packaging, align: { x: "center", y: "center" } },
+                    { text: String(row.quantity), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(row.unitRate), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(row.amount), align: { x: "right", y: "center" } },
+                    { text: String(row.stockIn), align: { x: "right", y: "center" } },
+                    { text: String(row.stockOut), align: { x: "right", y: "center" } },
+                    { text: String(row.remaining), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(row.lateCharges), align: { x: "right", y: "center" } },
+                ]);
             });
+            doc.fontSize(9);
+            itemTable.row([
+                { text: "Total", colSpan: 5, align: { x: "justify", y: "center" } },
+                { text: fmtCurrency(itemRows.reduce((s, r) => s + r.amount, 0)), align: { x: "right", y: "center" } },
+                { text: itemRows.reduce((s, r) => s + r.stockIn, 0).toString(), align: { x: "right", y: "center" } },
+                { text: itemRows.reduce((s, r) => s + r.stockOut, 0).toString(), align: { x: "right", y: "center" } },
+                { text: itemRows.reduce((s, r) => s + r.remaining, 0).toString(), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(itemRows.reduce((s, r) => s + r.lateCharges, 0)), align: { x: "right", y: "center" } },
+            ]);
+            itemTable.end();
 
             if (c.notes) {
                 pdfGen.moveDown(0.3);
@@ -1565,28 +1707,38 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
         // Grand totals page
         if (contracts.length > 1) {
             pdfGen.addPage();
-            doc.fontSize(14).font("Helvetica-Bold").fillColor("#333333").text("Grand Summary — All Contracts");
+            doc.x = doc.page.margins.left;
+            doc.fontSize(12).fillColor("#333333").text("Grand Summary — All Contracts");
             pdfGen.moveDown(0.5);
+            doc.fontSize(9).fillColor("#333333");
 
             const totalNet = contracts.reduce((s, c) => s + c.netAmount, 0);
             const totalTax = contracts.reduce((s, c) => s + c.salesTaxAmount, 0);
             const totalGross = contracts.reduce((s, c) => s + c.totalAmount, 0);
 
-            generateInfoSection(doc, {
-                data: {
-                    "Total Contracts": contracts.length.toString(),
-                    "Active": contracts.filter((c) => c.status === "ACTIVE").length.toString(),
-                    "Completed": contracts.filter((c) => c.status === "COMPLETED").length.toString(),
-                    "Total Net Amount": fmtCurrency(totalNet),
-                    "Total Tax": fmtCurrency(totalTax),
-                    "Total Gross Amount": fmtCurrency(totalGross),
-                },
-                columns: 3,
-                backgroundColor: "#e8f5e9",
-                borderColor: "#2e7d32",
-                labelFont: { family: "Helvetica-Bold", size: 10 },
-                valueFont: { family: "Helvetica-Bold", size: 10, color: "#1b5e20" },
-            });
+            doc.x = doc.page.margins.left;
+            const grandSummaryTable = doc.table({ columnStyles: ["*", "*", "*"] });
+            grandSummaryTable.row([
+                { text: "Total Contracts", align: { x: "left", y: "center" } },
+                { text: "Active", align: { x: "left", y: "center" } },
+                { text: "Completed", align: { x: "left", y: "center" } },
+            ]);
+            grandSummaryTable.row([
+                { text: contracts.length.toString(), align: { x: "left", y: "center" } },
+                { text: contracts.filter((c) => c.status === "ACTIVE").length.toString(), align: { x: "left", y: "center" } },
+                { text: contracts.filter((c) => c.status === "COMPLETED").length.toString(), align: { x: "left", y: "center" } },
+            ]);
+            grandSummaryTable.row([
+                { text: "Total Net Amount", align: { x: "left", y: "center" } },
+                { text: "Total Tax", align: { x: "left", y: "center" } },
+                { text: "Total Gross Amount", align: { x: "left", y: "center" } },
+            ]);
+            grandSummaryTable.row([
+                { text: fmtCurrency(totalNet), align: { x: "left", y: "center" } },
+                { text: fmtCurrency(totalTax), align: { x: "left", y: "center" } },
+                { text: fmtCurrency(totalGross), align: { x: "left", y: "center" } },
+            ]);
+            grandSummaryTable.end();
         }
 
         await pdfGen.sendToResponse(res, `farmer-contracts-${farmer.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);

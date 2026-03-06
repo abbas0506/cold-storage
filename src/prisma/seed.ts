@@ -37,17 +37,18 @@ export async function seedDatabase() {
 
     await prisma.ratePlan.createMany({
         data: [
-            { storeId: 1, packagingType: "BORI", rateType: "PER_MONTH", rateAmount: 100 },
+            { storeId: 1, packagingType: "BORI", rateType: "PER_MONTH", rateAmount: 200 },
             { storeId: 1, packagingType: "TORA", rateType: "PER_MONTH", rateAmount: 100 },
+            { storeId: 1, packagingType: "CRATE", rateType: "PER_MONTH", rateAmount: 100 },
         ],
     });
 
-    await prisma.farmer.createMany({
-        data: [
-            { name: "Ali Raza", phone: "555-5678", storeId: 1 },
-            { name: "Zeshan Khan", phone: "555-8765", storeId: 1 },
-        ],
-    });
+    // await prisma.farmer.createMany({
+    //     data: [
+    //         { name: "Ali Raza", phone: "555-5678", storeId: 1 },
+    //         { name: "Zeshan Khan", phone: "555-8765", storeId: 1 },
+    //     ],
+    // });
 
 
     await prisma.settings.createMany({

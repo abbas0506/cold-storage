@@ -28,6 +28,19 @@ export const index = async (req: Request, res: Response) => {
         skip,
         take: pageSize,
         include: {
+          _count: {
+            select: {
+              items: {
+                where: {
+                  movements: {
+                    some: {
+                      movementType: "IN",
+                    }
+                  },
+                },
+              }
+            }
+          },
           farmer: true,
           items: {
             include: {
@@ -37,6 +50,7 @@ export const index = async (req: Request, res: Response) => {
         },
         where: { farmerId: { in: farmerIds } },
         orderBy: { id: "desc" },
+
       }),
       prisma.contract.count({ where: { farmerId: { in: farmerIds } } }),
     ]);
@@ -106,23 +120,11 @@ export const create = async (req: Request, res: Response) => {
         },
       });
     }
-
-    const balanceSub = await prisma.ledger.findFirst({
-      where: {
-        farmerId: farmerId,
-      },
-      orderBy: {
-        id: 'desc',
-      }
-    });
-    const balance = balanceSub ? balanceSub.balance + totalAmount : totalAmount;
-
     const ledgerEntry = await prisma.ledger.create({
       data: {
         farmerId: farmerId,
         debit: totalAmount,
         credit: 0,
-        balance: balance,
         description: `Storage contract ${contractCode} created with total amount ${totalAmount}`,
       },
     });
@@ -204,7 +206,7 @@ export const update = async (req: Request, res: Response) => {
         actualEndDate,
         status,
         notes,
-        saleTaxRate: taxRate,
+        saleTaxRate: taxRate != null ? taxRate / 100 : undefined,
       },
     });
 
@@ -243,6 +245,91 @@ export const update = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error updatingstorage contract" });
   }
 };
+
+/** 
+ * Generte contract status update - ACTIVE, COMPLETED, CANCELLED
+ */
+
+export const updateStatus = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { status, fineAmount, numOfStock } = req.body;
+
+    const updatedContract = await prisma.contract.update({
+      where: { id },
+      data: { status },
+    });
+
+    if (fineAmount && status === "COMPLETED") {
+
+      await prisma.ledger.create({
+        data: {
+          farmerId: updatedContract.farmerId,
+          debit: fineAmount,
+          credit: 0,
+          description: `Fine applied for contract ${updatedContract.contractCode} with stockout of ${numOfStock} after expected end date`,
+        },
+      });
+    }
+
+    res.json(updatedContract);
+  } catch (error: any) {
+    console.error(error);
+    if (error.code === "P2025") {
+      return res.status(404).json({ message: "Storage contract not found" });
+    }
+    res.status(500).json({ message: "Error updatingstorage contract status" });
+  }
+};
+
+/** 
+ * Generate the Contract fine if contract stock is stockout after expected end date.
+ */
+
+export const getFineCalculations = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const contract = await prisma.contract.findUnique({
+      where: { id },
+    });
+    if (!contract) {
+      return res.status(404).json({ message: "Storage contract not found" });
+    }
+
+    const lines = await prisma.contractLine.findMany({
+      where: {
+        contractId: id,
+        movements: contract.expectedEndDate ? {
+          some: {
+            movementType: "OUT",
+            movementDate: {
+              gt: contract.expectedEndDate,
+            },
+          },
+        } : undefined,
+      },
+    });
+
+    const numberOfStockout = lines.reduce((acc, line) => {
+      return acc + (line.quantity ?? 0);
+    }, 0);
+
+    const numberOfDaysLate = dayjs().diff(dayjs(contract.expectedEndDate), "day");
+
+    return res.json({
+      numberOfStockout,
+      numberOfDaysLate,
+      fineAmount: numberOfStockout * 200,
+    });
+  } catch (error: any) {
+    console.error(error);
+    if (error.code === "P2025") {
+      return res.status(404).json({ message: "Storage contract not found" });
+    }
+    res.status(500).json({ message: "Error generating fine for storage contract" });
+  }
+}
+
 /**
  * Generate Contract Report PDF using PDFKit Components (A5 Landscape)
  */

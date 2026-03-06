@@ -7,6 +7,8 @@ import {
   destroy,
   updateFbrInvoice,
   generateContractReport,
+  getFineCalculations,
+  updateStatus,
 } from "../controllers/contracts.controller";
 
 const router = Router({ mergeParams: true });
@@ -19,5 +21,7 @@ router.put("/:id/fbr-invoice", updateFbrInvoice);
 router.get("/:id", show);
 router.put("/:id", update);
 router.delete("/:id", destroy);
+router.get("/:id/fine", getFineCalculations); // New route for fine calculations
+router.post("/:id/status", updateStatus); // New route for updating contract status
 
 export default router;

@@ -68,7 +68,7 @@ export const create = async (req: Request, res: Response) => {
       "P",
     ];
     const result = await prisma.$transaction(async (tx) => {
-      const newRoom = await prisma.room.create({
+      const newRoom = await tx.room.create({
         data: {
           name,
           tempMin,

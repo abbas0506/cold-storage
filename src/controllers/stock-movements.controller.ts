@@ -19,6 +19,9 @@ export const index = async (req: Request, res: Response) => {
         include: {
           contractLine: true, // optional
         },
+        orderBy: {
+          movementDate: "desc",
+        }
       }),
       prisma.stockMovement.count({
         where: {

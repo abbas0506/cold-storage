@@ -42,6 +42,8 @@ model ColdStore {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms     Room[]
   ratePlans RatePlan[]
+  farmers   Farmer[]
+  items     Item[]
 
   @@map("cold_stores")
 }
@@ -85,6 +87,7 @@ model Farmer {
   contracts Contract[]
   ledgers   Ledger[]
   payments  Payment[]
+  store     ColdStore  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, cnic])
 }
@@ -95,12 +98,13 @@ model Item {
   description   String?
   storeId       Int
   contractLines ContractLine[]
+  store         ColdStore      @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 model RatePlan {
   id            Int            @id @default(autoincrement())
   packagingType PackagingType?
-  rateType      RateType
+  rateType      RateType?
   rateAmount    Float
   storeId       Int
   store         ColdStore      @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -192,7 +196,6 @@ model Ledger {
   description     String
   debit           Float // Amount added to the invoice (e.g., new charges)
   credit          Float // Amount paid towards the invoice
-  balance         Float
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   farmer          Farmer   @relation(fields: [farmerId], references: [id])
