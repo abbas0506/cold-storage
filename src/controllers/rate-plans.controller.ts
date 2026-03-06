@@ -13,7 +13,7 @@ export const index = async (req: Request, res: Response) => {
 
     const { page, pageSize, skip } = getPaginationParams(req, 15);
 
-    const [ratePlans, count] = await prisma.$transaction([
+    const [ratePlans, count] = await Promise.all([
       prisma.ratePlan.findMany({
         where: {
           storeId: storeId,

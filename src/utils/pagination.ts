@@ -4,6 +4,8 @@ export interface PaginationParams {
   page: number;
   pageSize: number;
   skip: number;
+  q?: string;
+  params: Record<string, any>;
 }
 
 export interface PaginatedResponse<T> {
@@ -29,6 +31,10 @@ export function getPaginationParams(
   defaultPageSize: number = 10,
 ): PaginationParams {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const q = req.query.q as string | undefined;
+  const params: Record<string, any> = {};
+
+  // Include any additional query parameters for filtering/sorting
   const pageSize = Math.min(
     100,
     Math.max(1, parseInt(req.query.pageSize as string) || defaultPageSize),
@@ -39,6 +45,8 @@ export function getPaginationParams(
     page,
     pageSize,
     skip,
+    q,
+    params,
   };
 }
 

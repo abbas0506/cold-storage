@@ -7,3 +7,4 @@ generated
 /generated/prisma
 build
 *.exe
+build.zip
