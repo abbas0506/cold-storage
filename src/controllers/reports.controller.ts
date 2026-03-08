@@ -169,6 +169,31 @@ export const storeSummaryReport = async (req: Request, res: Response): Promise<v
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. ROOM OCCUPANCY REPORT
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// Conversion: 2 TORA = 1 BORI, 4 CRATE = 1 BORI
+function computePackagingBreakdown(racks: Array<{ stockMovements: Array<{ movementType: string; quantity: number; contractLine?: { packagingType?: string | null } | null }> }>) {
+    let bori = 0, tora = 0, crate = 0;
+    for (const rack of racks) {
+        for (const mv of rack.stockMovements) {
+            const delta = mv.movementType === "IN" ? mv.quantity : -mv.quantity;
+            const pt = mv.contractLine?.packagingType;
+            if (pt === "BORI") bori += delta;
+            else if (pt === "TORA") tora += delta;
+            else if (pt === "CRATE") crate += delta;
+        }
+    }
+    return {
+        bori: Math.max(0, bori),
+        tora: Math.max(0, tora),
+        crate: Math.max(0, crate),
+        boriEquiv: Math.max(0, bori + tora / 2 + crate / 4),
+    };
+}
+
+function fmtBoriEquiv(v: number): string {
+    return v % 1 === 0 ? fmtCurrency(v) : v.toFixed(2);
+}
+
 export const roomOccupancyReport = async (req: Request, res: Response): Promise<void> => {
     try {
         const storeId = Number(req.params.storeId);
@@ -177,7 +202,18 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
             include: {
                 rooms: {
                     include: {
-                        racks: true,
+                        racks: {
+                            orderBy: { id: "asc" },
+                            include: {
+                                stockMovements: {
+                                    include: {
+                                        contractLine: {
+                                            select: { packagingType: true },
+                                        },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -188,12 +224,17 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
         const rows = store.rooms.map((room) => {
             const rackCapacity = room.racks.reduce((s, r) => s + (r.capacity || 0), 0);
             const rackStock = room.racks.reduce((s, r) => s + r.currentStock, 0);
+            const { bori, tora, crate, boriEquiv } = computePackagingBreakdown(room.racks);
             return {
                 roomName: room.name,
                 floors: room.numOfFloors,
                 racks: room.numOfRacks,
                 roomCapacity: room.roomCapacity,
                 rackCapacity,
+                bori,
+                tora,
+                crate,
+                boriEquiv,
                 currentStock: rackStock,
                 available: rackCapacity - rackStock,
                 utilization: rackCapacity > 0 ? ((rackStock / rackCapacity) * 100).toFixed(1) + "%" : "0%",
@@ -206,13 +247,15 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
             pdfConfig("Room Occupancy Report", `Store: ${store.name}`, {
                 "Store": store.name,
                 "Total Rooms": store.rooms.length,
+                "Conversion": "2 TORA = 1 BORI | 4 CRATE = 1 BORI",
             }, "landscape")
         );
         const doc = pdfGen.getDocument();
 
+        // Room summary table — 13 columns
         doc.x = doc.page.margins.left;
         const table = doc.table({
-            columnStyles: ["*", 45, 45, 65, 65, 60, 60, 50, 80, 50],
+            columnStyles: ["*", 35, 35, 55, 55, 48, 48, 48, 62, 55, 42, 68, 42],
             rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
         });
         table.row([
@@ -221,7 +264,10 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
             { text: "Racks", align: { x: "center", y: "center" } },
             { text: "Room Cap.", align: { x: "right", y: "center" } },
             { text: "Rack Cap.", align: { x: "right", y: "center" } },
-            { text: "Current", align: { x: "right", y: "center" } },
+            { text: "BORI", align: { x: "right", y: "center" } },
+            { text: "TORA", align: { x: "right", y: "center" } },
+            { text: "CRATE", align: { x: "right", y: "center" } },
+            { text: "BORI Equiv.", align: { x: "right", y: "center" } },
             { text: "Available", align: { x: "right", y: "center" } },
             { text: "Util %", align: { x: "center", y: "center" } },
             { text: "Temp Range", align: { x: "center", y: "center" } },
@@ -234,7 +280,10 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
                 { text: String(row.racks), align: { x: "center", y: "center" } },
                 { text: fmtCurrency(row.roomCapacity), align: { x: "right", y: "center" } },
                 { text: fmtCurrency(row.rackCapacity), align: { x: "right", y: "center" } },
-                { text: fmtCurrency(row.currentStock), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.bori), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.tora), align: { x: "right", y: "center" } },
+                { text: fmtCurrency(row.crate), align: { x: "right", y: "center" } },
+                { text: fmtBoriEquiv(row.boriEquiv), align: { x: "right", y: "center" } },
                 { text: fmtCurrency(row.available), align: { x: "right", y: "center" } },
                 { text: row.utilization, align: { x: "center", y: "center" } },
                 { text: row.tempRange, align: { x: "center", y: "center" } },
@@ -245,7 +294,10 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
             { text: "Total", colSpan: 3, align: { x: "justify", y: "center" } },
             { text: fmtCurrency(rows.reduce((s, r) => s + r.roomCapacity, 0)), align: { x: "right", y: "center" } },
             { text: fmtCurrency(rows.reduce((s, r) => s + r.rackCapacity, 0)), align: { x: "right", y: "center" } },
-            { text: fmtCurrency(rows.reduce((s, r) => s + r.currentStock, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.bori, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.tora, 0)), align: { x: "right", y: "center" } },
+            { text: fmtCurrency(rows.reduce((s, r) => s + r.crate, 0)), align: { x: "right", y: "center" } },
+            { text: fmtBoriEquiv(rows.reduce((s, r) => s + r.boriEquiv, 0)), align: { x: "right", y: "center" } },
             { text: fmtCurrency(rows.reduce((s, r) => s + r.available, 0)), align: { x: "right", y: "center" } },
             { text: "", colSpan: 3, align: { x: "center", y: "center" } },
         ]);
@@ -256,36 +308,48 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
             if (room.racks.length === 0) continue;
             pdfGen.addPage();
             const doc2 = pdfGen.getDocument();
-            doc2.fontSize(14).font("Helvetica-Bold").fillColor("#333333").text(`Room: ${room.name} — Rack Details`);
+            doc2.fontSize(10).fillColor("#333333").text(`Room: ${room.name} — Rack Details`);
             pdfGen.moveDown(0.5);
-
-            const rackRows = room.racks.map((rack) => ({
-                rackName: rack.name,
-                capacity: rack.capacity || 0,
-                currentStock: rack.currentStock,
-                available: (rack.capacity || 0) - rack.currentStock,
-                utilization: rack.capacity && rack.capacity > 0
-                    ? ((rack.currentStock / rack.capacity) * 100).toFixed(1) + "%"
-                    : "0%",
-            }));
+            const rackRows = room.racks.map((rack) => {
+                const pb = computePackagingBreakdown([rack]);
+                return {
+                    rackName: rack.name,
+                    capacity: rack.capacity || 0,
+                    bori: pb.bori,
+                    tora: pb.tora,
+                    crate: pb.crate,
+                    boriEquiv: pb.boriEquiv,
+                    available: (rack.capacity || 0) - rack.currentStock,
+                    utilization: rack.capacity && rack.capacity > 0
+                        ? ((rack.currentStock / rack.capacity) * 100).toFixed(1) + "%"
+                        : "0%",
+                };
+            });
 
             doc2.x = doc2.page.margins.left;
+            doc2.fontSize(9);
             const rackTable = doc2.table({
-                columnStyles: ["*", 80, 80, 80, 80],
+                columnStyles: ["*", 70, 68, 68, 68, 75, 65, 52],
                 rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
             });
             rackTable.row([
                 { text: "Rack Name", align: { x: "left", y: "center" } },
                 { text: "Capacity", align: { x: "right", y: "center" } },
-                { text: "Current Stock", align: { x: "right", y: "center" } },
+                { text: "BORI", align: { x: "right", y: "center" } },
+                { text: "TORA", align: { x: "right", y: "center" } },
+                { text: "CRATE", align: { x: "right", y: "center" } },
+                { text: "BORI Equiv.", align: { x: "right", y: "center" } },
                 { text: "Available", align: { x: "right", y: "center" } },
-                { text: "Utilization", align: { x: "center", y: "center" } },
+                { text: "Util %", align: { x: "center", y: "center" } },
             ]);
             rackRows.forEach((rack) => {
                 rackTable.row([
                     rack.rackName,
                     { text: fmtCurrency(rack.capacity), align: { x: "right", y: "center" } },
-                    { text: fmtCurrency(rack.currentStock), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(rack.bori), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(rack.tora), align: { x: "right", y: "center" } },
+                    { text: fmtCurrency(rack.crate), align: { x: "right", y: "center" } },
+                    { text: fmtBoriEquiv(rack.boriEquiv), align: { x: "right", y: "center" } },
                     { text: fmtCurrency(rack.available), align: { x: "right", y: "center" } },
                     { text: rack.utilization, align: { x: "center", y: "center" } },
                 ]);
@@ -350,6 +414,7 @@ export const stockInventoryReport = async (req: Request, res: Response): Promise
                     room: room.name,
                     rack: rack.name,
                     item: itemName,
+                    packing: inMovements[0]?.contractLine?.packagingType || "N/A",
                     farmer: farmerName,
                     contract: contractCode,
                     capacity: rack.capacity || 0,
@@ -390,7 +455,7 @@ export const stockInventoryReport = async (req: Request, res: Response): Promise
             table.row([
                 row.room,
                 row.rack,
-                row.item,
+                row.item + " (" + row.packing + ")",
                 row.farmer,
                 { text: row.contract, align: { x: "center", y: "center" } },
                 { text: fmtCurrency(row.capacity), align: { x: "right", y: "center" } },
@@ -455,6 +520,7 @@ export const stockMovementReport = async (req: Request, res: Response): Promise<
             date: m.movementDate,
             type: m.movementType,
             item: m.contractLine?.item?.name || "N/A",
+            packing: m.contractLine?.packagingType || "N/A",
             farmer: m.contractLine?.contract?.farmer?.name || "N/A",
             contract: m.contractLine?.contract?.contractCode || "N/A",
             room: m.rack?.room?.name || "N/A",
@@ -486,6 +552,7 @@ export const stockMovementReport = async (req: Request, res: Response): Promise<
             { text: "Date", align: { x: "center", y: "center" } },
             { text: "Type", align: { x: "center", y: "center" } },
             { text: "Item", align: { x: "left", y: "center" } },
+            { text: "Packing", align: { x: "left", y: "center" } },
             { text: "Farmer", align: { x: "left", y: "center" } },
             { text: "Contract", align: { x: "center", y: "center" } },
             { text: "Room", align: { x: "center", y: "center" } },
@@ -499,6 +566,7 @@ export const stockMovementReport = async (req: Request, res: Response): Promise<
                 { text: fmtDate(row.date, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
                 { text: row.type, align: { x: "center", y: "center" } },
                 { text: row.item, align: { x: "left", y: "center" } },
+                { text: row.packing, align: { x: "left", y: "center" } },
                 { text: row.farmer, align: { x: "left", y: "center" } },
                 { text: row.contract, align: { x: "center", y: "center" } },
                 { text: row.room, align: { x: "center", y: "center" } },

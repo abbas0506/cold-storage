@@ -46,27 +46,12 @@ export const create = async (req: Request, res: Response) => {
 
     const rackCapacity =
       roomCapacity > 0 && numOfRacks > 0 && numOfFloors > 0
-        ? roomCapacity / (numOfRacks * numOfFloors)
+        ? roomCapacity / ((numOfRacks * 2) * numOfFloors)
         : 0;
 
-    const floorLabels = [
-      "A",
-      "B",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-      "I",
-      "J",
-      "K",
-      "L",
-      "M",
-      "N",
-      "O",
-      "P",
-    ];
+    const floorLabels = Array.from({ length: numOfFloors }, (_, i) =>
+      String.fromCharCode(65 + i)
+    );
     const result = await prisma.$transaction(async (tx) => {
       const newRoom = await tx.room.create({
         data: {

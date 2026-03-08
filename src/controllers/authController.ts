@@ -39,6 +39,46 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const changePassword = async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "newPassword must be at least 6 characters" });
+    return;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      res.status(400).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: userId }, data: { password: hash } });
+
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to change password" });
+  }
+};
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { username, password } = req.body;
   if (!username || !password) {

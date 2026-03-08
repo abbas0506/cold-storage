@@ -2,8 +2,21 @@ import app from "./app";
 import { seedDatabase } from "./prisma/seed";
 import { migrateDatabase } from "./prisma/migrate";
 import { prisma } from "./prisma/prisma";
+import bcrypt from "bcryptjs";
 
 const PORT = process.env.PORT || 3000;
+const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || "admin";
+const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || "admin123";
+
+async function checkDatabaseConnection(): Promise<void> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("✔ Database connection established.");
+  } catch (error) {
+    console.error("✖ Database connection failed:", error);
+    process.exit(1);
+  }
+}
 
 async function bootstrap() {
   const shouldMigrate = process.argv.includes("--migrate");
@@ -27,6 +40,8 @@ async function bootstrap() {
     }
     return;
   }
+
+  await checkDatabaseConnection();
 
   app.listen(PORT, () => {
     // eslint-disable-next-line no-console
