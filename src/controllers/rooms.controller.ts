@@ -52,47 +52,46 @@ export const create = async (req: Request, res: Response) => {
     const floorLabels = Array.from({ length: numOfFloors }, (_, i) =>
       String.fromCharCode(65 + i)
     );
-    const result = await prisma.$transaction(async (tx) => {
-      const newRoom = await tx.room.create({
-        data: {
-          name,
-          tempMin,
-          tempMax,
-          numOfFloors,
-          numOfRacks,
-          roomCapacity,
-          storeId,
-        },
-      });
 
-      // Prepare all racks in memory first
-      const racksData: any[] = [];
+    const newRoom = await prisma.room.create({
+      data: {
+        name,
+        tempMin,
+        tempMax,
+        numOfFloors,
+        numOfRacks,
+        roomCapacity,
+        storeId,
+      },
+    });
 
-      for (let floor = 1; floor <= numOfFloors; floor++) {
-        for (let rack = 1; rack <= numOfRacks; rack++) {
-          racksData.push({
-            name: `${rack}${floorLabels[floor - 1]}-L`,
-            capacity: rackCapacity,
-            roomId: Number(newRoom.id),
-          });
+    // Prepare all racks in memory first
+    const racksData: any[] = [];
 
-          racksData.push({
-            name: `${rack}${floorLabels[floor - 1]}-R`,
-            capacity: rackCapacity,
-            roomId: Number(newRoom.id),
-          });
-        }
-      }
+    for (let floor = 1; floor <= numOfFloors; floor++) {
+      for (let rack = 1; rack <= numOfRacks; rack++) {
+        racksData.push({
+          name: `${rack}${floorLabels[floor - 1]}-L`,
+          capacity: rackCapacity,
+          roomId: Number(newRoom.id),
+        });
 
-      // Insert all racks in one query
-      if (racksData.length > 0) {
-        await tx.rack.createMany({
-          data: racksData,
+        racksData.push({
+          name: `${rack}${floorLabels[floor - 1]}-R`,
+          capacity: rackCapacity,
+          roomId: Number(newRoom.id),
         });
       }
-      return res.status(201).json(newRoom);
-    });
-    res.status(201).json(result);
+    }
+
+    // Insert all racks in one query
+    if (racksData.length > 0) {
+      await prisma.rack.createMany({
+        data: racksData,
+      });
+    }
+
+    res.status(201).json(newRoom);
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: error.message });

@@ -1815,3 +1815,110 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
         res.status(500).json({ error: "Failed to generate farmer contracts report", message: error instanceof Error ? error.message : "Unknown error" });
     }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPENSES REPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+export const expensesReport = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const storeId = Number(req.params.storeId);
+        const { from, to, method } = req.query;
+
+        const store = await prisma.coldStore.findUnique({ where: { id: storeId } });
+        if (!store) { res.status(404).json({ message: "Store not found" }); return; }
+
+        const expenses = await prisma.expense.findMany({
+            where: {
+                storeId,
+                expenseDate: {
+                    gte: from ? new Date(from as string) : undefined,
+                    lte: to ? new Date(to as string) : undefined,
+                },
+                ...(method ? { paymentMethod: method as any } : {}),
+            },
+            orderBy: { expenseDate: "desc" },
+        });
+
+        const rows = expenses.map((e, i) => ({
+            sno: i + 1,
+            date: e.expenseDate,
+            description: e.description,
+            amount: e.amount,
+            method: e.paymentMethod,
+        }));
+
+        const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
+
+        const methodBreakdown: Record<string, number> = {};
+        expenses.forEach((e) => {
+            methodBreakdown[e.paymentMethod] = (methodBreakdown[e.paymentMethod] || 0) + e.amount;
+        });
+
+        const pdfGen = createPDFGenerator(
+            pdfConfig("Expenses Report", `Store: ${store.name}`, {
+                "From": from ? dayjs(from as string).format("DD MMM YYYY") : "All Time",
+                "To": to ? dayjs(to as string).format("DD MMM YYYY") : "Now",
+                "Method": (method as string) || "All",
+                "Total Records": expenses.length,
+            })
+        );
+        const doc = pdfGen.getDocument();
+
+        // Payment method summary
+        const methodSummary: Record<string, string> = {
+            "Total Expenses": fmtCurrency(totalAmount),
+        };
+        Object.entries(methodBreakdown).forEach(([m, v]) => {
+            methodSummary[m] = fmtCurrency(v);
+        });
+
+        const methodEntries = Object.entries(methodSummary);
+        const methodCols = Math.min(methodEntries.length, 4);
+        const methodColStyles: ("*" | number)[] = Array(methodCols).fill("*");
+        doc.x = doc.page.margins.left;
+        const methodInfoTable = doc.table({ columnStyles: methodColStyles });
+        for (let i = 0; i < methodEntries.length; i += methodCols) {
+            const chunk = methodEntries.slice(i, i + methodCols);
+            while (chunk.length < methodCols) chunk.push(["", ""]);
+            methodInfoTable.row(chunk.map(([label]) => ({ text: label, align: { x: "left" as const, y: "center" as const } })));
+            methodInfoTable.row(chunk.map(([, value]) => ({ text: value, align: { x: "left" as const, y: "center" as const } })));
+        }
+        methodInfoTable.end();
+
+        pdfGen.moveDown(0.5);
+
+        doc.x = doc.page.margins.left;
+        const table = doc.table({
+            columnStyles: [30, 70, "*", 80, 70],
+            rowStyles: (row) => row === 0 ? { backgroundColor: "#f0f0f0", fontSize: 10, fontStyle: "bold" } : {}
+        });
+        table.row([
+            { text: "#", align: { x: "center", y: "center" } },
+            { text: "Date", align: { x: "center", y: "center" } },
+            { text: "Description", align: { x: "left", y: "center" } },
+            { text: "Amount", align: { x: "right", y: "center" } },
+            { text: "Method", align: { x: "center", y: "center" } },
+        ]);
+        rows.forEach((row) => {
+            table.row([
+                { text: String(row.sno), align: { x: "center", y: "center" } },
+                { text: fmtDate(row.date, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                { text: row.description, align: { x: "left", y: "center" } },
+                { text: fmtCurrency(row.amount), align: { x: "right", y: "center" } },
+                { text: row.method, align: { x: "center", y: "center" } },
+            ]);
+        });
+        doc.fontSize(9);
+        table.row([
+            { text: "Grand Total", colSpan: 3, align: { x: "justify", y: "center" } },
+            { text: fmtCurrency(totalAmount), align: { x: "right", y: "center" } },
+            { text: "", align: { x: "center", y: "center" } },
+        ]);
+        table.end();
+
+        await pdfGen.sendToResponse(res, `expenses-report-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
+    } catch (error) {
+        console.error("Expenses report error:", error);
+        res.status(500).json({ error: "Failed to generate expenses report", message: error instanceof Error ? error.message : "Unknown error" });
+    }
+};

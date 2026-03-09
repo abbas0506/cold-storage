@@ -44,6 +44,7 @@ model ColdStore {
   ratePlans RatePlan[]
   farmers   Farmer[]
   items     Item[]
+  expenses  Expense[]
 
   @@map("cold_stores")
 }
@@ -236,4 +237,17 @@ enum PaymentMethod {
   EASYPaisa
   JAZZCASH
   CHEQUE
+}
+
+model Expense {
+  id            Int           @id @default(autoincrement())
+  storeId       Int
+  amount        Float
+  paymentMethod PaymentMethod
+  description   String
+  expenseDate   DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  store ColdStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }

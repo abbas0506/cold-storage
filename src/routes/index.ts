@@ -15,6 +15,7 @@ import stockMovementRouter from "./stock-movements.routes";
 import statisticsRouter from "./statistics.routes";
 import ledgerRouter from "./ledger.routes";
 import reportsRouter from "./reports.routes";
+import expensesRouter from "./expenses.routes";
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.use(
 );
 router.use("/statistics", authenticate, statisticsRouter);
 router.use("/ledger", authenticate, ledgerRouter);
+router.use("/coldstores/:storeId/expenses", authenticate, expensesRouter);
 router.use("/reports", reportsRouter);
 
 export default router;

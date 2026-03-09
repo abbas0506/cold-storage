@@ -19,8 +19,9 @@ export const index = async (req: Request, res: Response) => {
   try {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
     const storeId = Number(req.params.storeId);
+    const q = req.query.q as string | undefined;
     const farmers = await prisma.farmer.findMany({
-      where: { storeId: storeId },
+      where: { storeId: storeId, name: q ? { contains: q, mode: "insensitive" } : undefined },
     });
     const farmerIds = farmers.map((f) => f.id);
     const [items, total] = await Promise.all([
@@ -48,11 +49,11 @@ export const index = async (req: Request, res: Response) => {
             },
           },
         },
-        where: { farmerId: { in: farmerIds } },
+        where: { farmerId: { in: farmerIds }, contractCode: q ? { contains: q, mode: "insensitive" } : undefined },
         orderBy: { id: "desc" },
 
       }),
-      prisma.contract.count({ where: { farmerId: { in: farmerIds } } }),
+      prisma.contract.count({ where: { farmerId: { in: farmerIds }, contractCode: q ? { contains: q, mode: "insensitive" } : undefined } }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));

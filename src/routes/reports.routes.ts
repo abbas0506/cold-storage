@@ -14,6 +14,7 @@ import {
     farmerDirectoryReport,
     farmerStatementReport,
     farmerContractsReport,
+    expensesReport,
 } from "../controllers/reports.controller";
 
 const router = Router({ mergeParams: true });
@@ -131,5 +132,15 @@ router.get("/farmers/:farmerId/statement", authenticate, farmerStatementReport);
  * @access  Private
  */
 router.get("/farmers/:farmerId/contracts", authenticate, farmerContractsReport);
+
+/**
+ * @route   GET /api/reports/stores/:storeId/expenses
+ * @desc    Expenses report for a store with method breakdown
+ * @query   from   - Start date (optional)
+ * @query   to     - End date (optional)
+ * @query   method - Payment method: CASH | BANK | EASYPaisa | JAZZCASH | CHEQUE (optional)
+ * @access  Private
+ */
+router.get("/stores/:storeId/expenses", authenticate, expensesReport);
 
 export default router;
