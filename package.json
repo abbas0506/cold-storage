@@ -8,7 +8,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "npm run prisma:generate && tsc -p tsconfig.json",
     "build:obfuscate": "npm run build && node scripts/obfuscate.js",
-    "build:exe": "npm run build && node scripts/patch-fontkit.js && pkg . --no-bytecode --public-packages \"*\" --public --output build/cold-storage.exe && node scripts/post-build.js",
+    "build:exe": "node scripts/sync-version.js && npm run build && node scripts/patch-fontkit.js && pkg . --no-bytecode --public-packages \"*\" --public --output build/cold-storage.exe && node scripts/post-build.js",
     "start": "node dist/server.js",
     "prod": "npm run build && npm run start",
     "test": "echo \"Error: no test specified\" && exit 1",

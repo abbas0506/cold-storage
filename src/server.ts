@@ -3,6 +3,7 @@ import { seedDatabase } from "./prisma/seed";
 import { migrateDatabase } from "./prisma/migrate";
 import { prisma } from "./prisma/prisma";
 import bcrypt from "bcryptjs";
+import { checkForUpdates } from "./utils/auto-updater";
 
 const PORT = process.env.PORT || 3000;
 const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || "admin";
@@ -40,6 +41,11 @@ async function bootstrap() {
     }
     return;
   }
+
+  // Check for a new .exe release before starting the HTTP server.
+  // This call exits the process (and hands off to the updater bat) only when
+  // a new version was found and downloaded successfully.
+  await checkForUpdates();
 
   await checkDatabaseConnection();
 
