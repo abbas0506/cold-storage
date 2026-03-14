@@ -98,7 +98,7 @@ export const update = async (req: Request, res: Response) => {
 
     const updatedPayment = await prisma.payment.update({
       where: { id },
-      data: { paymentDate, amount, paymentMethod, transactionRef, remarks, farmerId },
+      data: { paymentDate: new Date(paymentDate), amount, paymentMethod, transactionRef, remarks, farmerId },
     });
 
     res.json(updatedPayment);
