@@ -82,10 +82,9 @@ export function generateHeader(
     const contentX = options.logo ? startX + (options.logo.width || 60) + 15 : startX;
     let leftY = yPos;
 
-
-    const companyName = "Global Cold Storage Pvt Ltd";
-    const address = "456 Industrial Area, Depalpur";
-    const phone = "+92 300 123 4567\n+92 300 987 6543";
+    const companyName = options.companyName || "";
+    const address = options.address || "";
+    const phone = options.phone || "";
 
     // Company Name
     if (companyName) {

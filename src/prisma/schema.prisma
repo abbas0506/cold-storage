@@ -7,22 +7,49 @@ datasource db {
   provider = "postgres"
 }
 
-enum UserRole {
+// ─── System-level role (platform-wide) ────────────────────────────────────────
+enum SystemRole {
+  SUPER_ADMIN // Platform owner – manages plans & subscriptions
+  SUBSCRIBER // Business owner – buys a plan, owns cold stores
+  USER // Store-level staff – assigned to stores by subscriber
+}
+
+// ─── Store-level role (per cold-store) ────────────────────────────────────────
+enum StoreRole {
   ADMIN
   EMPLOYEE
 }
 
-model User {
-  id        Int       @id @default(autoincrement())
-  username  String    @unique
-  password  String
-  lastLogin DateTime?
-  fcmToken  String?
-  role      UserRole  @default(EMPLOYEE)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+// ─── Subscription lifecycle ───────────────────────────────────────────────────
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
 
-  coldStores ColdStore[]
+// ─── Users ────────────────────────────────────────────────────────────────────
+model User {
+  id          Int        @id @default(autoincrement())
+  username    String     @unique
+  password    String
+  name        String?
+  phone       String?
+  email       String?    @unique
+  lastLogin   DateTime?
+  fcmToken    String?
+  systemRole  SystemRole @default(USER)
+  isActive    Boolean    @default(true)
+  /// Who created this user (subscriber creates store users)
+  createdById Int?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  createdBy    User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[]        @relation("UserCreatedBy")
+  subscription Subscription?
+  storeAccess  StoreUser[]
 }
 
 model Settings {
@@ -31,22 +58,82 @@ model Settings {
   value String
 }
 
-model ColdStore {
-  id       Int     @id @default(autoincrement())
-  name     String
-  hashCode String
-  address  String?
-  phone    String?
-  userId   Int
+// ─── Subscription plans (managed by SUPER_ADMIN) ──────────────────────────────
+model SubscriptionPlan {
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  description      String?
+  pricePerMonth    Float
+  maxStores        Int      @default(1)
+  maxUsersPerStore Int      @default(5)
+  durationDays     Int      @default(30)
+  features         Json?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rooms     Room[]
-  ratePlans RatePlan[]
-  farmers   Farmer[]
-  items     Item[]
-  expenses  Expense[]
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+// ─── Subscriptions (SUPER_ADMIN assigns to SUBSCRIBER users) ──────────────────
+model Subscription {
+  id        Int                @id @default(autoincrement())
+  userId    Int                @unique
+  planId    Int
+  status    SubscriptionStatus @default(PENDING)
+  startDate DateTime
+  endDate   DateTime
+  notes     String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan       SubscriptionPlan @relation(fields: [planId], references: [id])
+  coldStores ColdStore[]
+
+  @@map("subscriptions")
+}
+
+// ─── Cold stores ──────────────────────────────────────────────────────────────
+model ColdStore {
+  id             Int      @id @default(autoincrement())
+  name           String
+  hashCode       String
+  address        String?
+  phone          String?
+  subscriptionId Int?
+  logoUrl        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  storeUsers   StoreUser[]
+  rooms        Room[]
+  ratePlans    RatePlan[]
+  farmers      Farmer[]
+  items        Item[]
+  expenses     Expense[]
 
   @@map("cold_stores")
+}
+
+// ─── Store-user membership (store-level roles) ────────────────────────────────
+model StoreUser {
+  id        Int       @id @default(autoincrement())
+  storeId   Int
+  userId    Int
+  role      StoreRole @default(EMPLOYEE)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  store ColdStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@map("store_users")
 }
 
 model Room {

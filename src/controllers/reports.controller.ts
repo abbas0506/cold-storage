@@ -28,7 +28,8 @@ function pdfConfig(
     subtitle: string,
     filterInfo: Record<string, string | number>,
     orientation: "portrait" | "landscape" = "portrait",
-    size: "A4" | "A5" | "A3" = "A4"
+    size: "A4" | "A5" | "A3" = "A4",
+    storeInfo?: { name?: string | null; address?: string | null; phone?: string | null }
 ) {
     const reportFonts = fonts();
     return {
@@ -43,13 +44,16 @@ function pdfConfig(
             title,
             subtitle,
             logo: { path: logoPath, width: 60, height: 60 },
+            companyName: storeInfo?.name || undefined,
+            address: storeInfo?.address || undefined,
+            phone: storeInfo?.phone || undefined,
             showDate: true,
             titleFont: { family: "Helvetica-Bold" as const, size: 16 },
             subtitleFont: { size: 10, color: "#666666" },
             filterInfo,
         },
         footer: {
-            leftText: "Cold Storage System",
+            leftText: storeInfo?.name || "Cold Storage System",
             centerText: title,
             showPageNumber: true,
             font: { size: 8, color: "#666666" },
@@ -65,15 +69,17 @@ export const storeSummaryReport = async (req: Request, res: Response): Promise<v
         const stores = await prisma.coldStore.findMany({
             include: {
                 rooms: { include: { racks: true } },
-                user: { select: { username: true } },
+                subscription: {
+                    select: { user: { select: { username: true, name: true } } },
+                },
             },
         });
 
         const rows = await Promise.all(
             stores.map(async (store) => {
-                const totalCapacity = store.rooms.reduce((s, r) => s + r.roomCapacity, 0);
+                const totalCapacity = store.rooms.reduce((s: number, r: any) => s + r.roomCapacity, 0);
                 const currentStock = store.rooms.reduce(
-                    (s, r) => s + r.racks.reduce((rs, rack) => rs + rack.currentStock, 0),
+                    (s: number, r: any) => s + r.racks.reduce((rs: number, rack: any) => rs + rack.currentStock, 0),
                     0
                 );
                 const activeContracts = await prisma.contract.count({
@@ -91,7 +97,7 @@ export const storeSummaryReport = async (req: Request, res: Response): Promise<v
                 return {
                     name: store.name,
                     address: store.address || "N/A",
-                    manager: store.user?.username || "N/A",
+                    manager: store.subscription?.user?.name || store.subscription?.user?.username || "N/A",
                     rooms: store.rooms.length,
                     totalCapacity,
                     currentStock,
@@ -115,7 +121,7 @@ export const storeSummaryReport = async (req: Request, res: Response): Promise<v
             pdfConfig("Store Summary Report", "Overview of All Cold Stores", {
                 "Total Stores": stores.length,
                 "Generated": dayjs().format("DD MMM YYYY"),
-            }, "landscape")
+            }, "landscape", "A4")
         );
         const doc = pdfGen.getDocument();
 
@@ -248,7 +254,7 @@ export const roomOccupancyReport = async (req: Request, res: Response): Promise<
                 "Store": store.name,
                 "Total Rooms": store.rooms.length,
                 "Conversion": "2 TORA = 1 BORI | 4 CRATE = 1 BORI",
-            }, "landscape")
+            }, "landscape", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -432,7 +438,7 @@ export const stockInventoryReport = async (req: Request, res: Response): Promise
                 "Store": store.name,
                 "Total Items in Stock": totalStock,
                 "Date": dayjs().format("DD MMM YYYY"),
-            }, "landscape")
+            }, "landscape", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -538,7 +544,7 @@ export const stockMovementReport = async (req: Request, res: Response): Promise<
                 "To": to ? dayjs(to as string).format("DD MMM YYYY") : "All",
                 "Type": (type as string) || "All",
                 "Total Records": movements.length,
-            }, "landscape")
+            }, "landscape", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -648,7 +654,7 @@ export const revenueReport = async (req: Request, res: Response): Promise<void> 
                 "From": from ? dayjs(from as string).format("DD MMM YYYY") : "All Time",
                 "To": to ? dayjs(to as string).format("DD MMM YYYY") : "Now",
                 "Contracts": contracts.length,
-            }, "landscape")
+            }, "landscape", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -778,7 +784,7 @@ export const contractsReport = async (req: Request, res: Response): Promise<void
                 "From": from ? dayjs(from as string).format("DD MMM YYYY") : "All",
                 "To": to ? dayjs(to as string).format("DD MMM YYYY") : "All",
                 "Total": contracts.length,
-            }, "landscape")
+            }, "landscape", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -884,7 +890,7 @@ export const paymentsReport = async (req: Request, res: Response): Promise<void>
                 "To": to ? dayjs(to as string).format("DD MMM YYYY") : "Now",
                 "Method": (method as string) || "All",
                 "Total Records": payments.length,
-            })
+            }, "portrait", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -996,7 +1002,7 @@ export const outstandingDuesReport = async (req: Request, res: Response): Promis
                 "Store": store.name,
                 "Farmers": rows.length,
                 "Outstanding": fmtCurrency(totalOutstanding),
-            })
+            }, "portrait", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -1092,7 +1098,7 @@ export const ratePlansReport = async (req: Request, res: Response): Promise<void
             pdfConfig("Rate Plans Report", `Store: ${store.name}`, {
                 "Store": store.name,
                 "Total Plans": ratePlans.length,
-            })
+            }, "portrait", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -1180,7 +1186,7 @@ export const expiringContractsReport = async (req: Request, res: Response): Prom
                 "Within Days": daysNum,
                 "Expiring Contracts": contracts.length,
                 "Store": store.name,
-            })
+            }, "portrait", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -1262,7 +1268,7 @@ export const farmerDirectoryReport = async (req: Request, res: Response): Promis
             pdfConfig("Farmer Directory", `Store: ${store.name}`, {
                 "Store": store.name,
                 "Total Farmers": farmers.length,
-            }, "landscape")
+            }, "landscape", "A4", store)
         );
         const doc = pdfGen.getDocument();
 
@@ -1317,6 +1323,8 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
 
         const farmer = await prisma.farmer.findUnique({ where: { id: farmerId } });
         if (!farmer) { res.status(404).json({ message: "Farmer not found" }); return; }
+
+        const store = await prisma.coldStore.findUnique({ where: { id: farmer.storeId } });
 
         // Contracts
         const contracts = await prisma.contract.findMany({
@@ -1377,6 +1385,9 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
                 title: "Farmer Account Statement",
                 subtitle: `Farmer: ${farmer.name}`,
                 logo: { path: logoPath, width: 60, height: 60 },
+                companyName: store?.name || undefined,
+                address: store?.address || undefined,
+                phone: store?.phone || undefined,
                 showDate: true,
                 titleFont: { family: "Helvetica-Bold", size: 16 },
                 subtitleFont: { size: 10, color: "#666666" },
@@ -1386,7 +1397,7 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
                 },
             },
             footer: {
-                leftText: "Cold Storage System",
+                leftText: store?.name || "Cold Storage System",
                 centerText: "Farmer Statement",
                 showPageNumber: true,
                 font: { size: 8, color: "#666666" },
@@ -1621,6 +1632,8 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
         const farmer = await prisma.farmer.findUnique({ where: { id: farmerId } });
         if (!farmer) { res.status(404).json({ message: "Farmer not found" }); return; }
 
+        const store = await prisma.coldStore.findUnique({ where: { id: farmer.storeId } });
+
         const contracts = await prisma.contract.findMany({
             where: {
                 farmerId,
@@ -1651,6 +1664,9 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
                 title: "Farmer Contracts Detail",
                 subtitle: `Farmer: ${farmer.name} | Phone: ${farmer.phone}`,
                 logo: { path: logoPath, width: 60, height: 60 },
+                companyName: store?.name || undefined,
+                address: store?.address || undefined,
+                phone: store?.phone || undefined,
                 showDate: true,
                 titleFont: { family: "Helvetica-Bold", size: 16 },
                 subtitleFont: { size: 10, color: "#666666" },
@@ -1661,7 +1677,7 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
                 },
             },
             footer: {
-                leftText: "Cold Storage System",
+                leftText: store?.name || "Cold Storage System",
                 centerText: "Farmer Contracts",
                 showPageNumber: true,
                 font: { size: 8, color: "#666666" },
@@ -1860,7 +1876,7 @@ export const expensesReport = async (req: Request, res: Response): Promise<void>
                 "To": to ? dayjs(to as string).format("DD MMM YYYY") : "Now",
                 "Method": (method as string) || "All",
                 "Total Records": expenses.length,
-            })
+            }, "portrait", "A4", store)
         );
         const doc = pdfGen.getDocument();
 

@@ -8,57 +8,97 @@ export async function seedDatabase() {
         console.log("Database already seeded, skipping...");
         return;
     }
-    // Create a user
+
     const hash = await bcrypt.hash("password", 10);
-    const user = await prisma.user.create({
+
+    // ── 1. Super Admin ───────────────────────────────────────────────────────
+    await prisma.user.create({
         data: {
-            username: "admin",
-            password: hash
+            username: "superadmin",
+            password: hash,
+            name: "Super Admin",
+            systemRole: "SUPER_ADMIN",
+            isActive: true,
         },
     });
 
-    await prisma.coldStore.create({
+    // ── 2. Subscription plan ─────────────────────────────────────────────────
+    const plan = await prisma.subscriptionPlan.create({
         data: {
-            name: "Shareef Wala [001]",
+            name: "Standard",
+            description: "Standard cold-storage plan",
+            pricePerMonth: 1000,
+            maxStores: 2,
+            maxUsersPerStore: 10,
+            durationDays: 365,
+            isActive: true,
+        },
+    });
+
+
+    // ── 3. Subscriber user ───────────────────────────────────────────────────
+    const subscriber = await prisma.user.create({
+        data: {
+            username: "admin",
+            password: hash,
+            name: "Store Owner",
+            systemRole: "SUBSCRIBER",
+            isActive: true,
+        },
+    });
+
+    // ── 4. Subscription for the subscriber ───────────────────────────────────
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + plan.durationDays);
+
+    const subscription = await prisma.subscription.create({
+        data: {
+            userId: subscriber.id,
+            planId: plan.id,
+            status: "ACTIVE",
+            startDate,
+            endDate,
+        },
+    });
+
+    // ── 5. Cold store linked to subscription ─────────────────────────────────
+    const store = await prisma.coldStore.create({
+        data: {
+            name: "Shareef Wala",
             address: "123 Cold St, Depalpur",
             phone: "555-1234",
-            userId: user.id,
+            subscriptionId: subscription.id,
             hashCode: await bcrypt.hash("coldstore", 10),
         },
     });
 
+    // ── 6. Seed items & rate plans ────────────────────────────────────────────
     await prisma.item.createMany({
         data: [
-            { name: "Esmi Potato", storeId: 1 },
-            { name: "Mozika Potato", storeId: 1 },
-            { name: "LR Potato", storeId: 1 },
+            { name: "Esmi Potato", storeId: store.id },
+            { name: "Mozika Potato", storeId: store.id },
+            { name: "LR Potato", storeId: store.id },
+            { name: "LR Goli", storeId: store.id },
+            { name: "Mozika Goli", storeId: store.id },
         ],
     });
 
     await prisma.ratePlan.createMany({
         data: [
-            { storeId: 1, packagingType: "BORI", rateType: "PER_MONTH", rateAmount: 200 },
-            { storeId: 1, packagingType: "TORA", rateType: "PER_MONTH", rateAmount: 100 },
-            { storeId: 1, packagingType: "CRATE", rateType: "PER_MONTH", rateAmount: 100 },
+            { storeId: store.id, packagingType: "BORI", rateType: "PER_MONTH", rateAmount: 200 },
+            { storeId: store.id, packagingType: "TORA", rateType: "PER_MONTH", rateAmount: 100 },
+            { storeId: store.id, packagingType: "CRATE", rateType: "PER_MONTH", rateAmount: 100 },
         ],
     });
-
-    // await prisma.farmer.createMany({
-    //     data: [
-    //         { name: "Ali Raza", phone: "555-5678", storeId: 1 },
-    //         { name: "Zeshan Khan", phone: "555-8765", storeId: 1 },
-    //     ],
-    // });
-
 
     await prisma.settings.createMany({
         data: [
-            {
-                key: "ledger_show_balance",
-                value: "true",
-            },
+            { key: "ledger_show_balance", value: "true" },
         ],
     });
+
+    console.log(`Seeded: superadmin / admin (password: 'password')`);
 }
 
 if (require.main === module) {

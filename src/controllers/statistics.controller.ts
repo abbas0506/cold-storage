@@ -1,12 +1,30 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma/prisma';
 
+/** Build a Prisma WHERE clause that restricts stores to those the caller can see */
+async function buildStoreWhere(req: Request) {
+    if (!req.user || req.user.systemRole === 'SUPER_ADMIN') return {};
+
+    if (req.user.systemRole === 'SUBSCRIBER') {
+        return { subscription: { userId: req.user.id } };
+    }
+
+    const storeUsers = await prisma.storeUser.findMany({
+        where: { userId: req.user.id, isActive: true },
+        select: { storeId: true },
+    });
+    return { id: { in: storeUsers.map((su) => su.storeId) } };
+}
+
 /**
  * Get overall statistics for all cold stores
  */
 export const getAllStoresStatistics = async (req: Request, res: Response) => {
     try {
+        const where = await buildStoreWhere(req);
+
         const stores = await prisma.coldStore.findMany({
+            where,
             include: {
                 rooms: {
                     include: {
@@ -120,7 +138,8 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
         const { months = 12 } = req.query;
         const monthsCount = parseInt(months as string, 10);
 
-        const stores = await prisma.coldStore.findMany();
+        const storeWhere = await buildStoreWhere(req);
+        const stores = await prisma.coldStore.findMany({ where: storeWhere });
 
         const trends = await Promise.all(
             stores.map(async (store) => {
@@ -323,11 +342,9 @@ export const getStoreDetailedStatistics = async (req: Request, res: Response) =>
                         racks: true,
                     },
                 },
-                user: {
+                subscription: {
                     select: {
-                        id: true,
-                        username: true,
-                        role: true,
+                        user: { select: { id: true, username: true, name: true } },
                     },
                 },
             },
@@ -380,9 +397,9 @@ export const getStoreDetailedStatistics = async (req: Request, res: Response) =>
         });
 
         // Room utilization
-        const roomUtilization = store.rooms.map((room) => {
-            const totalRackCapacity = room.racks.reduce((sum, rack) => sum + (rack.capacity || 0), 0);
-            const totalRackStock = room.racks.reduce((sum, rack) => sum + rack.currentStock, 0);
+        const roomUtilization = store.rooms.map((room: any) => {
+            const totalRackCapacity = room.racks.reduce((sum: number, rack: any) => sum + (rack.capacity || 0), 0);
+            const totalRackStock = room.racks.reduce((sum: number, rack: any) => sum + rack.currentStock, 0);
 
             return {
                 roomId: room.id,
@@ -435,7 +452,7 @@ export const getStoreDetailedStatistics = async (req: Request, res: Response) =>
                     name: store.name,
                     address: store.address,
                     phone: store.phone,
-                    manager: store.user,
+                    manager: store.subscription?.user ?? null,
                 },
                 activeContractsCount: activeContracts.length,
                 activeContracts: activeContracts.slice(0, 10), // Return first 10
@@ -462,21 +479,34 @@ export const getStoreDetailedStatistics = async (req: Request, res: Response) =>
  */
 export const getDashboardSummary = async (req: Request, res: Response) => {
     try {
+        const storeWhere = await buildStoreWhere(req);
+
+        // Get accessible stores
+        const accessibleStores = await prisma.coldStore.findMany({
+            where: storeWhere,
+            select: { id: true },
+        });
+        const storeIds = accessibleStores.map((s) => s.id);
+
         // Total stores
-        const totalStores = await prisma.coldStore.count();
+        const totalStores = storeIds.length;
 
         // Total active contracts
         const totalActiveContracts = await prisma.contract.count({
             where: {
                 status: 'ACTIVE',
+                farmer: { storeId: { in: storeIds } },
             },
         });
 
         // Total farmers
-        const totalFarmers = await prisma.farmer.count();
+        const totalFarmers = await prisma.farmer.count({
+            where: { storeId: { in: storeIds } },
+        });
 
         // Total capacity and current stock
         const rooms = await prisma.room.findMany({
+            where: { storeId: { in: storeIds } },
             include: {
                 racks: true,
             },
@@ -494,6 +524,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
 
         const monthlyRevenue = await prisma.contract.aggregate({
             where: {
+                farmer: { storeId: { in: storeIds } },
                 createdAt: {
                     gte: startOfMonth,
                 },
@@ -506,6 +537,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
         // Unpaid invoices
         const unpaidInvoicesTotal = await prisma.contract.aggregate({
             where: {
+                farmer: { storeId: { in: storeIds } },
                 notes: {
                     in: ['UNPAID', 'PARTIAL'],
                 },
@@ -517,6 +549,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
 
         const unpaidInvoicesCount = await prisma.contract.count({
             where: {
+                farmer: { storeId: { in: storeIds } },
                 notes: {
                     in: ['UNPAID', 'PARTIAL'],
                 },
@@ -528,6 +561,9 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
             take: 10,
             orderBy: {
                 movementDate: 'desc',
+            },
+            where: {
+                rack: { room: { storeId: { in: storeIds } } },
             },
             include: {
                 contractLine: {
