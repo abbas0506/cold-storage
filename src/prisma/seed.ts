@@ -9,7 +9,8 @@ export async function seedDatabase() {
         return;
     }
 
-    const hash = await bcrypt.hash("password", 10);
+    const hash = await bcrypt.hash("8m8a2r4w", 10);
+    const demohash = await bcrypt.hash("password", 10);
 
     // ── 1. Super Admin ───────────────────────────────────────────────────────
     await prisma.user.create({
@@ -39,9 +40,9 @@ export async function seedDatabase() {
     // ── 3. Subscriber user ───────────────────────────────────────────────────
     const subscriber = await prisma.user.create({
         data: {
-            username: "admin",
-            password: hash,
-            name: "Store Owner",
+            username: "demo",
+            password: demohash,
+            name: "Store Demo",
             systemRole: "SUBSCRIBER",
             isActive: true,
         },
@@ -98,7 +99,7 @@ export async function seedDatabase() {
         ],
     });
 
-    console.log(`Seeded: superadmin / admin (password: 'password')`);
+    console.log(`Seeded: superadmin / demo (password: 'password')`);
 }
 
 if (require.main === module) {
