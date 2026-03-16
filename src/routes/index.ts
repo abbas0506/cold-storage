@@ -19,6 +19,11 @@ import expensesRouter from "./expenses.routes";
 import subscriptionPlansRouter from "./subscription-plans.routes";
 import subscriptionsRouter from "./subscriptions.routes";
 import storeUsersRouter from "./store-users.routes";
+import settingsRouter from "./settings.routes";
+import expenseTypesRouter from "./expense-types.routes";
+import employeesRouter from "./employees.routes";
+import employeeLedgerRouter from "./employee-ledger.routes";
+import salarySlipsRouter from "./salary-slips.routes";
 
 const router = Router();
 
@@ -59,9 +64,26 @@ router.use(
 );
 router.use("/coldstores/:storeId/expenses", authenticate, storeAccess, expensesRouter);
 
+// ─── Employee management (store-scoped) ──────────────────────────────────────
+router.use("/coldstores/:storeId/employees", authenticate, storeAccess, employeesRouter);
+router.use(
+  "/coldstores/:storeId/employees/:employeeId/ledger",
+  authenticate,
+  storeAccess,
+  employeeLedgerRouter,
+);
+router.use(
+  "/coldstores/:storeId/employees/:employeeId/salary-slips",
+  authenticate,
+  storeAccess,
+  salarySlipsRouter,
+);
+
 // ─── Cross-store resources ────────────────────────────────────────────────────
 router.use("/statistics", authenticate, statisticsRouter);
 router.use("/ledger", authenticate, ledgerRouter);
 router.use("/reports", reportsRouter);
+router.use("/expense-types", authenticate, expenseTypesRouter);
+router.use("/settings", authenticate, settingsRouter);
 
 export default router;

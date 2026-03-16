@@ -28,6 +28,7 @@
 | `MovementType` | `IN`, `OUT` |
 | `PaymentMethod` | `CASH`, `BANK`, `EASYPaisa`, `JAZZCASH`, `CHEQUE` |
 | `RateType` | `PER_DAY`, `PER_MONTH`, `FIXED` |
+| `SalaryStatus` | `DRAFT`, `APPROVED`, `PAID`, `CANCELLED` |
 
 ---
 
@@ -1031,7 +1032,7 @@ Base path: `/api/coldstores/:storeId/expenses`
 ### GET `/api/coldstores/:storeId/expenses`
 **Query Params:** `page`, `pageSize`
 
-**Response:** Paginated list of `Expense`, ordered by id desc.
+**Response:** Paginated list of `Expense` (with `expenseType`), ordered by id desc.
 
 **Expense object:**
 | Field | Type |
@@ -1039,6 +1040,8 @@ Base path: `/api/coldstores/:storeId/expenses`
 | `id` | `number` |
 | `storeId` | `number` |
 | `amount` | `number` |
+| `expenseTypeId` | `number` |
+| `expenseType` | `ExpenseType` |
 | `paymentMethod` | `PaymentMethod` |
 | `description` | `string` |
 | `expenseDate` | `ISO datetime` |
@@ -1052,23 +1055,24 @@ Base path: `/api/coldstores/:storeId/expenses`
 | Field | Type | Required |
 |-------|------|----------|
 | `amount` | `number` | Yes |
+| `expenseTypeId` | `number` | Yes |
 | `paymentMethod` | `PaymentMethod` | Yes |
 | `description` | `string` | Yes |
 | `expenseDate` | `ISO datetime` | No (defaults to now) |
 
-**Response `201`:** Created `Expense`.
+**Response `201`:** Created `Expense` with `expenseType`.
 
 ---
 
 ### GET `/api/coldstores/:storeId/expenses/:id`
-**Response `200`:** Single `Expense`.
+**Response `200`:** Single `Expense` with `expenseType`.
 
 ---
 
 ### PUT `/api/coldstores/:storeId/expenses/:id`
 **Body:** Same fields as POST, all optional.
 
-**Response `200`:** Updated `Expense`.
+**Response `200`:** Updated `Expense` with `expenseType`.
 
 ---
 
@@ -1077,7 +1081,319 @@ Base path: `/api/coldstores/:storeId/expenses`
 
 ---
 
-## 16. Statistics
+## 16. Expense Types
+
+Base path: `/api/expense-types`  
+**Access:** Authenticated (GET); no extra role guard on mutations.
+
+### GET `/api/expense-types`
+Returns a flat list of all expense types, ordered by `id`.
+
+**Response `200`:** `ExpenseType[]`
+
+**ExpenseType object:**
+| Field | Type |
+|-------|------|
+| `id` | `number` |
+| `name` | `string` |
+
+---
+
+### POST `/api/expense-types`
+**Body:**
+| Field | Type | Required |
+|-------|------|----------|
+| `name` | `string` | Yes |
+
+**Response `201`:** Created `ExpenseType`.
+
+---
+
+### GET `/api/expense-types/:id`
+**Response `200`:** Single `ExpenseType`.
+
+---
+
+### PUT `/api/expense-types/:id`
+**Body:**
+| Field | Type |
+|-------|------|
+| `name` | `string` |
+
+**Response `200`:** Updated `ExpenseType`.
+
+---
+
+### DELETE `/api/expense-types/:id`
+**Response `200`:** `{ "message": "Expense type deleted successfully" }`
+
+---
+
+## 17. Settings
+
+Base path: `/api/settings`  
+**Access:** GET endpoints are authenticated; PUT and DELETE require `SUPER_ADMIN`.
+
+### GET `/api/settings`
+Returns all settings as both an array and a key→value map.
+
+**Response `200`:**
+```json
+{
+  "items": [
+    { "id": "number", "key": "string", "value": "string" }
+  ],
+  "map": {
+    "key": "value"
+  }
+}
+```
+
+---
+
+### GET `/api/settings/:key`
+**Response `200`:** `{ "id": number, "key": string, "value": string }`
+
+**Errors:** `404` key not found
+
+---
+
+### PUT `/api/settings/:key`
+**Access:** `SUPER_ADMIN`  
+Upserts — creates the key if it does not exist, updates if it does.
+
+**Body:**
+| Field | Type | Required |
+|-------|------|----------|
+| `value` | `string` | Yes |
+
+**Response `200`:** `{ "id": number, "key": string, "value": string }`
+
+---
+
+### DELETE `/api/settings/:key`
+**Access:** `SUPER_ADMIN`
+
+**Response `200`:** `{ "message": "Setting deleted successfully" }`
+
+---
+
+## 18. Employees
+
+Base path: `/api/coldstores/:storeId/employees`  
+**Access:** Authenticated + store access.
+
+### GET `/api/coldstores/:storeId/employees`
+**Query Params:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `page` | `number` | `1` | |
+| `pageSize` | `number` | `15` | |
+| `showInactive` | `boolean` | `false` | Include inactive employees |
+
+**Response:** Paginated list of `Employee`.
+
+**Employee object:**
+| Field | Type |
+|-------|------|
+| `id` | `number` |
+| `storeId` | `number` |
+| `joiningDate` | `ISO datetime` |
+| `designation` | `string \| null` |
+| `baseSalary` | `number` |
+| `advanceLimit` | `number` |
+| `balance` | `number` (positive = company owes employee; negative = employee owes company) |
+| `active` | `boolean` |
+| `createdAt` | `ISO datetime` |
+| `updatedAt` | `ISO datetime` |
+
+---
+
+### POST `/api/coldstores/:storeId/employees`
+**Body:**
+| Field | Type | Required |
+|-------|------|----------|
+| `baseSalary` | `number` | Yes |
+| `joiningDate` | `ISO datetime` | No (defaults to now) |
+| `designation` | `string` | No |
+| `advanceLimit` | `number` | No (defaults to `0` = no limit) |
+
+**Response `201`:** Created `Employee`.
+
+---
+
+### GET `/api/coldstores/:storeId/employees/:id`
+Returns the employee with the most recent 10 ledger entries and most recent 12 salary slips.
+
+**Response `200`:** `Employee` + `ledger[]` + `salarySlips[]`
+
+---
+
+### PUT `/api/coldstores/:storeId/employees/:id`
+**Body:** Same fields as POST, all optional; also accepts `active: boolean`.
+
+**Response `200`:** Updated `Employee`.
+
+---
+
+### DELETE `/api/coldstores/:storeId/employees/:id`
+Soft-deletes by setting `active = false`. Does **not** permanently delete.
+
+**Response `200`:** `{ "message": "Employee deactivated", "employee": Employee }`
+
+---
+
+## 19. Employee Ledger
+
+Base path: `/api/coldstores/:storeId/employees/:employeeId/ledger`  
+**Access:** Authenticated + store access.
+
+Every financial event that affects the employee's balance is stored here. `Employee.balance` is updated atomically inside a `$transaction` on every write/delete.
+
+- **debit > 0** — company owes employee more (e.g. salary credited, advance reversal)
+- **credit > 0** — employee owes company more (e.g. advance taken, deduction)
+
+### GET `/api/coldstores/:storeId/employees/:employeeId/ledger`
+**Query Params:** `page`, `pageSize` (default 20)
+
+**Response:** Paginated list of `EmployeeLedger`, ordered by `createdAt` desc.
+
+**EmployeeLedger object:**
+| Field | Type |
+|-------|------|
+| `id` | `number` |
+| `employeeId` | `number` |
+| `debit` | `number` |
+| `credit` | `number` |
+| `note` | `string \| null` |
+| `createdAt` | `ISO datetime` |
+| `updatedAt` | `ISO datetime` |
+
+---
+
+### POST `/api/coldstores/:storeId/employees/:employeeId/ledger`
+Creates a ledger entry and updates `Employee.balance` atomically.
+
+**Body:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `debit` | `number` | No | Amount added to employee's balance (default `0`) |
+| `credit` | `number` | No | Amount deducted from employee's balance (default `0`) |
+| `note` | `string` | No | Description of the transaction |
+
+At least one of `debit` or `credit` must be > 0.
+
+**Response `201`:** Created `EmployeeLedger`.
+
+---
+
+### GET `/api/coldstores/:storeId/employees/:employeeId/ledger/:id`
+**Response `200`:** Single `EmployeeLedger`.
+
+---
+
+### DELETE `/api/coldstores/:storeId/employees/:employeeId/ledger/:id`
+Deletes the entry and reverses the `balance` effect on the employee.
+
+**Response `200`:** `{ "message": "Ledger entry deleted and balance reversed" }`
+
+---
+
+## 20. Salary Slips
+
+Base path: `/api/coldstores/:storeId/employees/:employeeId/salary-slips`  
+**Access:** Authenticated + store access.
+
+**Lifecycle:** `DRAFT` → `APPROVED` → `PAID` (or `CANCELLED` at any pre-paid stage)
+
+### GET `/api/coldstores/:storeId/employees/:employeeId/salary-slips`
+**Query Params:** `page`, `pageSize` (default 12)
+
+**Response:** Paginated list of `SalarySlip`, ordered by `year` desc, `month` desc.
+
+**SalarySlip object:**
+| Field | Type |
+|-------|------|
+| `id` | `number` |
+| `employeeId` | `number` |
+| `year` | `number` |
+| `month` | `number` (1–12) |
+| `baseSalary` | `number` (snapshot at generation time) |
+| `bonus` | `number` |
+| `totalAdvances` | `number` |
+| `otherDeductions` | `number` |
+| `netPayable` | `number` (`baseSalary + bonus - totalAdvances - otherDeductions`) |
+| `status` | `SalaryStatus` |
+| `paidDate` | `ISO datetime \| null` |
+| `note` | `string \| null` |
+| `createdAt` | `ISO datetime` |
+| `updatedAt` | `ISO datetime` |
+
+---
+
+### POST `/api/coldstores/:storeId/employees/:employeeId/salary-slips`
+Generates a **DRAFT** salary slip for the given year/month. Only one slip per employee per period is allowed.
+
+**Body:**
+| Field | Type | Required |
+|-------|------|----------|
+| `year` | `number` | Yes |
+| `month` | `number` (1–12) | Yes |
+| `bonus` | `number` | No (default `0`) |
+| `otherDeductions` | `number` | No (default `0`) |
+| `note` | `string` | No |
+
+`baseSalary` is snapshotted from `Employee.baseSalary`. `netPayable` is auto-calculated.
+
+**Response `201`:** Created `SalarySlip`.
+
+**Errors:** `404` employee not found · `409` slip already exists for this period
+
+---
+
+### GET `/api/coldstores/:storeId/employees/:employeeId/salary-slips/:id`
+**Response `200`:** `SalarySlip` with `employee`.
+
+---
+
+### PUT `/api/coldstores/:storeId/employees/:employeeId/salary-slips/:id`
+Updates a `DRAFT` or `APPROVED` slip. Cannot edit `PAID` or `CANCELLED` slips. `netPayable` is recalculated automatically.
+
+**Body:**
+| Field | Type |
+|-------|------|
+| `bonus` | `number` |
+| `totalAdvances` | `number` |
+| `otherDeductions` | `number` |
+| `status` | `SalaryStatus` (`DRAFT` or `APPROVED` only) |
+| `note` | `string` |
+
+**Response `200`:** Updated `SalarySlip`.
+
+---
+
+### PATCH `/api/coldstores/:storeId/employees/:employeeId/salary-slips/:id/pay`
+Marks an `APPROVED` slip as `PAID`. Atomically:
+1. Sets `status = PAID`, `paidDate = now`
+2. Creates an `EmployeeLedger` credit entry for `netPayable`
+3. Decrements `Employee.balance` by `netPayable`
+
+**Response `200`:** Updated `SalarySlip`.
+
+**Errors:** `400` if slip is not `APPROVED`
+
+---
+
+### PATCH `/api/coldstores/:storeId/employees/:employeeId/salary-slips/:id/cancel`
+Cancels a `DRAFT` or `APPROVED` slip.
+
+**Response `200`:** Updated `SalarySlip` with `status = CANCELLED`.
+
+**Errors:** `400` if slip is already `PAID`
+
+---
+
+## 21. Statistics
 
 All endpoints require authentication. Results are filtered by the caller's access level automatically.
 
@@ -1179,7 +1495,7 @@ Returns per-item stock statistics and monthly IN/OUT trends.
 
 ---
 
-## 17. Ledger (Reports)
+## 22. Ledger (Reports)
 
 ### GET `/api/ledger/report`
 **Access:** Authenticated  
@@ -1210,7 +1526,7 @@ Returns a multi-page PDF ledger report for all farmers.
 
 ---
 
-## 18. Reports (PDF)
+## 23. Reports (PDF)
 
 All report endpoints return `application/pdf`. Require authentication unless noted.
 

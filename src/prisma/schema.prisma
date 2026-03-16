@@ -115,6 +115,7 @@ model ColdStore {
   farmers      Farmer[]
   items        Item[]
   expenses     Expense[]
+  employees    Employee[]
 
   @@map("cold_stores")
 }
@@ -326,15 +327,96 @@ enum PaymentMethod {
   CHEQUE
 }
 
+model ExpenseType {
+  id       Int       @id @default(autoincrement())
+  name     String    @db.VarChar(50)
+  expenses Expense[]
+}
+
 model Expense {
   id            Int           @id @default(autoincrement())
   storeId       Int
   amount        Float
+  expenseTypeId Int
   paymentMethod PaymentMethod
   description   String
   expenseDate   DateTime      @default(now())
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  store ColdStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store       ColdStore   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  expenseType ExpenseType @relation(fields: [expenseTypeId], references: [id])
+}
+
+model Employee {
+  id           Int      @id @default(autoincrement())
+  name         String
+  phone        String
+  storeId      Int
+  joiningDate  DateTime
+  designation  String? // e.g., "Cashier", "Store Manager"
+  baseSalary   Float // Agreed monthly salary
+  advanceLimit Float    @default(0) // Max total advance allowed at once (0 = no limit)
+  balance      Float    @default(0) // Denormalized. Positive = company owes employee, Negative = employee owes company
+  active       Boolean  @default(true)
+
+  ledger      EmployeeLedger[]
+  salarySlips SalarySlip[]
+  store       ColdStore        @relation(fields: [storeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employees")
+}
+
+// ------------------------------------------------------------------
+// Every financial event that affects an employee's balance.
+// This is the single source of truth — never update Employee.balance
+// directly; always write a ledger entry and update balance atomically
+// inside a Prisma $transaction.
+// ------------------------------------------------------------------
+model EmployeeLedger {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  debit      Float    @default(0) // Amount added to employee's balance (e.g., salary credit, advance reversal)
+  credit     Float    @default(0) // Amount deducted from employee's balance (e.g., advance taken, salary deduction)
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, createdAt])
+  @@map("employee_ledger")
+}
+
+model SalarySlip {
+  id              Int          @id @default(autoincrement())
+  employeeId      Int
+  year            Int
+  month           Int // 1–12
+  baseSalary      Float // Snapshot of Employee.baseSalary at time of generation
+  bonus           Float        @default(0)
+  totalAdvances   Float        @default(0) // Sum of all PENDING advances deducted this month
+  otherDeductions Float        @default(0) // Credit purchases, fines, penalties — entered manually
+  netPayable      Float // baseSalary + bonus - totalAdvances - otherDeductions
+  status          SalaryStatus @default(DRAFT)
+  paidDate        DateTime?
+  note            String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, year, month]) // One slip per employee per month
+  @@map("salary_slips")
+}
+
+enum SalaryStatus {
+  DRAFT // Generated but not yet reviewed
+  APPROVED // Reviewed and approved, ready to pay
+  PAID // Net salary has been disbursed
+  CANCELLED // Voided (e.g., employee left mid-month)
 }

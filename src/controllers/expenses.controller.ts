@@ -13,6 +13,7 @@ export const index = async (req: Request, res: Response) => {
                 skip,
                 take: pageSize,
                 where: { storeId },
+                include: { expenseType: true },
                 orderBy: { id: "desc" },
             }),
             prisma.expense.count({ where: { storeId } }),
@@ -33,16 +34,18 @@ export const create = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "Invalid storeId" });
         }
 
-        const { amount, paymentMethod, description, expenseDate } = req.body;
+        const { amount, expenseTypeId, paymentMethod, description, expenseDate } = req.body;
 
         const newExpense = await prisma.expense.create({
             data: {
                 storeId,
                 amount,
+                expenseTypeId,
                 paymentMethod,
                 description,
                 expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
             },
+            include: { expenseType: true },
         });
 
         return res.status(201).json(newExpense);
@@ -56,7 +59,7 @@ export const create = async (req: Request, res: Response) => {
 export const show = async (req: Request, res: Response) => {
     try {
         const id = Number(req.params.id);
-        const record = await prisma.expense.findUnique({ where: { id } });
+        const record = await prisma.expense.findUnique({ where: { id }, include: { expenseType: true } });
 
         if (!record) {
             return res.status(404).json({ message: "Expense not found" });
@@ -73,16 +76,18 @@ export const show = async (req: Request, res: Response) => {
 export const update = async (req: Request, res: Response) => {
     try {
         const id = Number(req.params.id);
-        const { amount, paymentMethod, description, expenseDate } = req.body;
+        const { amount, expenseTypeId, paymentMethod, description, expenseDate } = req.body;
 
         const updatedExpense = await prisma.expense.update({
             where: { id },
             data: {
                 amount,
+                expenseTypeId,
                 paymentMethod,
                 description,
                 expenseDate: expenseDate ? new Date(expenseDate) : undefined,
             },
+            include: { expenseType: true },
         });
 
         res.json(updatedExpense);
