@@ -7,16 +7,37 @@ export const index = async (req: Request, res: Response) => {
     try {
         const { page, pageSize, skip } = getPaginationParams(req, 15);
         const storeId = Number(req.params.storeId);
+        const q = req.query.q as string | undefined;
+        const expenseTypeId = req.query.expenseTypeId ? Number(req.query.expenseTypeId) : undefined;
+        const dateFrom = req.query.dateFrom as string | undefined;
+        const dateTo = req.query.dateTo as string | undefined;
+
+        const whereClause: any = {
+            storeId,
+            ...(q ? {
+                OR: [
+                    { description: { contains: q, mode: "insensitive" } },
+                    { expenseType: { name: { contains: q, mode: "insensitive" } } },
+                ],
+            } : {}),
+            ...(expenseTypeId ? { expenseTypeId } : {}),
+            ...((dateFrom || dateTo) ? {
+                expenseDate: {
+                    ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+                    ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+                },
+            } : {}),
+        };
 
         const [items, total] = await Promise.all([
             prisma.expense.findMany({
                 skip,
                 take: pageSize,
-                where: { storeId },
+                where: whereClause,
                 include: { expenseType: true },
                 orderBy: { id: "desc" },
             }),
-            prisma.expense.count({ where: { storeId } }),
+            prisma.expense.count({ where: whereClause }),
         ]);
 
         res.json(createPaginatedResponse(items, total, page, pageSize));

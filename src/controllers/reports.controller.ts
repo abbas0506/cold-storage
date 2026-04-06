@@ -1938,3 +1938,145 @@ export const expensesReport = async (req: Request, res: Response): Promise<void>
         res.status(500).json({ error: "Failed to generate expenses report", message: error instanceof Error ? error.message : "Unknown error" });
     }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ITEMS REPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+export const itemsReport = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const storeId = Number(req.params.storeId);
+        const { from, to, farmerId, itemIds } = req.query;
+
+        const store = await prisma.coldStore.findUnique({ where: { id: storeId } });
+        if (!store) { res.status(404).json({ message: "Store not found" }); return; }
+
+        // Parse optional itemIds (comma-separated)
+        const parsedItemIds = itemIds
+            ? (itemIds as string).split(",").map(Number).filter(Boolean)
+            : undefined;
+
+        const farmerFilter = farmerId ? { id: Number(farmerId) } : undefined;
+
+        const farmer = farmerId
+            ? await prisma.farmer.findUnique({ where: { id: Number(farmerId) } })
+            : null;
+
+        // Fetch stock movements for this store with optional filters
+        const movements = await prisma.stockMovement.findMany({
+            where: {
+                movementDate: {
+                    gte: from ? new Date(from as string) : undefined,
+                    lte: to ? new Date(to as string + "T23:59:59.999Z") : undefined,
+                },
+                contractLine: {
+                    ...(parsedItemIds ? { itemId: { in: parsedItemIds } } : {}),
+                    contract: {
+                        farmer: {
+                            storeId,
+                            ...(farmerFilter ? { id: farmerFilter.id } : {}),
+                        },
+                    },
+                },
+            },
+            include: {
+                contractLine: {
+                    include: {
+                        item: true,
+                        contract: {
+                            include: {
+                                farmer: true,
+                            },
+                        },
+                    },
+                },
+                rack: { include: { room: true } },
+            },
+            orderBy: [{ movementDate: "asc" }],
+        });
+
+        // Group by item
+        const itemGroups: Record<number, {
+            itemName: string;
+            movements: typeof movements;
+            totalIn: number;
+            totalOut: number;
+        }> = {};
+
+        for (const mv of movements) {
+            const itemId = mv.contractLine?.itemId || 0;
+            const itemName = mv.contractLine?.item?.name || "Unknown";
+            if (!itemGroups[itemId]) {
+                itemGroups[itemId] = { itemName, movements: [], totalIn: 0, totalOut: 0 };
+            }
+            itemGroups[itemId].movements.push(mv);
+            if (mv.movementType === "IN") itemGroups[itemId].totalIn += mv.quantity;
+            else itemGroups[itemId].totalOut += mv.quantity;
+        }
+
+        const filterInfo: Record<string, string | number> = {
+            "From": from ? dayjs(from as string).format("DD MMM YYYY") : "All Time",
+            "To": to ? dayjs(to as string).format("DD MMM YYYY") : "Now",
+            "Farmer": farmer ? farmer.name : "All Farmers",
+            "Total Movements": movements.length,
+        };
+
+        const pdfGen = createPDFGenerator(
+            pdfConfig("Items Movement Report", `Store: ${store.name}`, filterInfo, "landscape", "A4", store)
+        );
+        const doc = pdfGen.getDocument();
+
+        if (Object.keys(itemGroups).length === 0) {
+            doc.fontSize(11).fillColor("#666").text("No movements found for the selected filters.", {
+                align: "center",
+            });
+        } else {
+            for (const [, group] of Object.entries(itemGroups)) {
+                // Item header
+                doc.fontSize(11).fillColor("#1f2937").font("Helvetica-Bold")
+                    .text(`Item: ${group.itemName}   |   Total IN: ${fmtCurrency(group.totalIn)}   |   Total OUT: ${fmtCurrency(group.totalOut)}   |   Net Stock: ${fmtCurrency(group.totalIn - group.totalOut)}`, {
+                        underline: false,
+                    });
+                doc.fontSize(8).moveDown(0.3);
+
+                doc.x = doc.page.margins.left;
+                const table = doc.table({
+                    columnStyles: [70, 80, "*", 50, 55, 55, 70],
+                    rowStyles: (row) => row === 0
+                        ? { backgroundColor: "#e5e7eb", fontSize: 9, fontStyle: "bold" }
+                        : { fontSize: 8 },
+                });
+                table.row([
+                    { text: "Date", align: { x: "center", y: "center" } },
+                    { text: "Contract", align: { x: "left", y: "center" } },
+                    { text: "Farmer", align: { x: "left", y: "center" } },
+                    { text: "Pkg Type", align: { x: "center", y: "center" } },
+                    { text: "Type", align: { x: "center", y: "center" } },
+                    { text: "Quantity", align: { x: "right", y: "center" } },
+                    { text: "Location", align: { x: "left", y: "center" } },
+                ]);
+
+                for (const mv of group.movements) {
+                    table.row([
+                        { text: fmtDate(mv.movementDate, "DD-MM-YYYY"), align: { x: "center", y: "center" } },
+                        { text: mv.contractLine?.contract?.contractCode || "-", align: { x: "left", y: "center" } },
+                        { text: mv.contractLine?.contract?.farmer?.name || "-", align: { x: "left", y: "center" } },
+                        { text: mv.contractLine?.packagingType || "-", align: { x: "center", y: "center" } },
+                        {
+                            text: mv.movementType,
+                            align: { x: "center", y: "center" },
+                        },
+                        { text: fmtCurrency(mv.quantity), align: { x: "right", y: "center" } },
+                        { text: mv.rack ? `${mv.rack.room?.name || ""} / ${mv.rack.name}` : "-", align: { x: "left", y: "center" } },
+                    ]);
+                }
+                table.end();
+                doc.moveDown(1);
+            }
+        }
+
+        await pdfGen.sendToResponse(res, `items-report-${store.name}-${dayjs().format("YYYY-MM-DD")}.pdf`);
+    } catch (error) {
+        console.error("Items report error:", error);
+        res.status(500).json({ error: "Failed to generate items report", message: error instanceof Error ? error.message : "Unknown error" });
+    }
+};

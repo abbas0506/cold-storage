@@ -1197,6 +1197,8 @@ Base path: `/api/coldstores/:storeId/employees`
 | Field | Type |
 |-------|------|
 | `id` | `number` |
+| `name` | `string` |
+| `phone` | `string \| null` |
 | `storeId` | `number` |
 | `joiningDate` | `ISO datetime` |
 | `designation` | `string \| null` |
@@ -1213,6 +1215,8 @@ Base path: `/api/coldstores/:storeId/employees`
 **Body:**
 | Field | Type | Required |
 |-------|------|----------|
+| `name` | `string` | Yes |
+| `phone` | `string` | No |
 | `baseSalary` | `number` | Yes |
 | `joiningDate` | `ISO datetime` | No (defaults to now) |
 | `designation` | `string` | No |

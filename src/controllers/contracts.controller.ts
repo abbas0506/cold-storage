@@ -20,10 +20,27 @@ export const index = async (req: Request, res: Response) => {
     const { page, pageSize, skip } = getPaginationParams(req, 15);
     const storeId = Number(req.params.storeId);
     const q = req.query.q as string | undefined;
-    const farmers = await prisma.farmer.findMany({
-      where: { storeId: storeId, name: q ? { contains: q, mode: "insensitive" } : undefined },
-    });
-    const farmerIds = farmers.map((f) => f.id);
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+
+    const dateFilter = (from || to) ? {
+      startDate: {
+        ...(from ? { gte: new Date(from) } : {}),
+        ...(to ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
+      },
+    } : {};
+
+    const whereClause: any = {
+      farmer: { storeId },
+      ...dateFilter,
+      ...(q ? {
+        OR: [
+          { contractCode: { contains: q, mode: "insensitive" } },
+          { farmer: { name: { contains: q, mode: "insensitive" }, mobile: { contains: q, mode: "insensitive" } } },
+        ],
+      } : {}),
+    };
+
     const [items, total] = await Promise.all([
       prisma.contract.findMany({
         skip,
@@ -49,11 +66,10 @@ export const index = async (req: Request, res: Response) => {
             },
           },
         },
-        where: { farmerId: { in: farmerIds }, contractCode: q ? { contains: q, mode: "insensitive" } : undefined },
+        where: whereClause,
         orderBy: { id: "desc" },
-
       }),
-      prisma.contract.count({ where: { farmerId: { in: farmerIds }, contractCode: q ? { contains: q, mode: "insensitive" } : undefined } }),
+      prisma.contract.count({ where: whereClause }),
     ]);
 
     res.json(createPaginatedResponse(items, total, page, pageSize));
@@ -72,6 +88,7 @@ export const create = async (req: Request, res: Response) => {
       notes,
       taxRate,
       items,
+      startDate,
     } = req.body;
     const storeId = Number(req.params.storeId);
     if (!req.params.storeId) {
@@ -98,7 +115,7 @@ export const create = async (req: Request, res: Response) => {
       data: {
         farmerId,
         contractCode,
-        startDate: new Date(),
+        startDate: startDate ? new Date(startDate) : new Date(),
         expectedEndDate,
         actualEndDate: expectedEndDate,
         status: 'ACTIVE',

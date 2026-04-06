@@ -15,6 +15,7 @@ import {
     farmerStatementReport,
     farmerContractsReport,
     expensesReport,
+    itemsReport,
 } from "../controllers/reports.controller";
 
 const router = Router({ mergeParams: true });
@@ -142,5 +143,16 @@ router.get("/farmers/:farmerId/contracts", authenticate, farmerContractsReport);
  * @access  Private
  */
 router.get("/stores/:storeId/expenses", authenticate, expensesReport);
+
+/**
+ * @route   GET /api/reports/stores/:storeId/items
+ * @desc    Items movement report with filters
+ * @query   from     - Start date (optional)
+ * @query   to       - End date (optional)
+ * @query   farmerId - Filter by farmer ID (optional)
+ * @query   itemIds  - Comma-separated item IDs (optional)
+ * @access  Private
+ */
+router.get("/stores/:storeId/items", authenticate, itemsReport);
 
 export default router;

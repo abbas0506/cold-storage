@@ -11,7 +11,19 @@ export const index = async (req: Request, res: Response) => {
       prisma.rack.findMany({
         include: {
           stockMovements: {
-            include: { contractLine: true },
+            include: {
+              contractLine: {
+                include: {
+                  item: true,
+                  contract: {
+                    include: {
+                      farmer: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { movementDate: 'desc' },
           },
         },
         where: { roomId: Number(req.params.roomId) },
