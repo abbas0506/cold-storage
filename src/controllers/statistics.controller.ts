@@ -556,6 +556,24 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
             },
         });
 
+        // Operations stats: employees, expenses, payments
+        const totalEmployees = await prisma.employee.count({
+            where: { storeId: { in: storeIds } },
+        });
+
+        const totalExpenseCount = await prisma.expense.count({
+            where: { storeId: { in: storeIds } },
+        });
+
+        const monthPaymentsAgg = await prisma.payment.aggregate({
+            where: {
+                farmer: { storeId: { in: storeIds } },
+                paymentDate: { gte: startOfMonth },
+            },
+            _sum: { amount: true },
+            _count: true,
+        });
+
         // Recent activities (last 10 stock movements)
         const recentActivities = await prisma.stockMovement.findMany({
             take: 10,
@@ -603,6 +621,10 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
                     monthlyRevenue: monthlyRevenue._sum.netAmount || 0,
                     unpaidAmount: unpaidInvoicesTotal._sum.netAmount || 0,
                     unpaidInvoicesCount,
+                    totalEmployees,
+                    totalExpenseCount,
+                    monthPayments: monthPaymentsAgg._count || 0,
+                    monthPaymentAmount: monthPaymentsAgg._sum.amount || 0,
                 },
                 recentActivities: recentActivities.map((activity) => ({
                     id: activity.id,

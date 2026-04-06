@@ -130,3 +130,48 @@ export const destroy = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error deleting payment" });
   }
 };
+
+// Get payment statistics for a store
+export const getPaymentStats = async (req: Request, res: Response) => {
+  try {
+    const storeId = Number(req.params.storeId);
+
+    const farmers = await prisma.farmer.findMany({
+      where: { storeId },
+      select: { id: true },
+    });
+    const farmerIds = farmers.map((f) => f.id);
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      totalPayments,
+      totalAmountAgg,
+      todayPayments,
+      todayAmountAgg,
+      monthPayments,
+      monthAmountAgg,
+    ] = await Promise.all([
+      prisma.payment.count({ where: { farmerId: { in: farmerIds } } }),
+      prisma.payment.aggregate({ where: { farmerId: { in: farmerIds } }, _sum: { amount: true } }),
+      prisma.payment.count({ where: { farmerId: { in: farmerIds }, paymentDate: { gte: startOfToday } } }),
+      prisma.payment.aggregate({ where: { farmerId: { in: farmerIds }, paymentDate: { gte: startOfToday } }, _sum: { amount: true } }),
+      prisma.payment.count({ where: { farmerId: { in: farmerIds }, paymentDate: { gte: startOfMonth } } }),
+      prisma.payment.aggregate({ where: { farmerId: { in: farmerIds }, paymentDate: { gte: startOfMonth } }, _sum: { amount: true } }),
+    ]);
+
+    res.json({
+      totalPayments,
+      totalAmount: totalAmountAgg._sum.amount || 0,
+      todayPayments,
+      todayAmount: todayAmountAgg._sum.amount || 0,
+      monthPayments,
+      monthAmount: monthAmountAgg._sum.amount || 0,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching payment stats" });
+  }
+};

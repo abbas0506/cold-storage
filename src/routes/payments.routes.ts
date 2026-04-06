@@ -5,11 +5,13 @@ import {
   show,
   update,
   destroy,
+  getPaymentStats,
 } from "../controllers/payments.controller";
 
 const router = Router({ mergeParams: true });
 
-// get all cold stores
+// stats must come before /:id to avoid route conflict
+router.get("/stats", getPaymentStats);
 router.get("/", index);
 router.post("/", create);
 router.get("/:id", show);
