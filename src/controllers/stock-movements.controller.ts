@@ -167,7 +167,26 @@ export const getRacksFormItemLine = async (req: Request, res: Response) => {
     if (!line) {
       return res.status(404).json({ message: "Contract line not found" });
     }
-    res.json(line.movements.map((movement) => movement.rack));
+
+    // Group movements by rack and calculate net stock per rack for this line
+    const rackStockMap = new Map<number, { rack: any; netStock: number }>();
+    for (const movement of line.movements) {
+      if (!movement.rack) continue;
+      const rackId = movement.rack.id;
+      const delta = movement.movementType === "IN" ? movement.quantity : -movement.quantity;
+      if (rackStockMap.has(rackId)) {
+        rackStockMap.get(rackId)!.netStock += delta;
+      } else {
+        rackStockMap.set(rackId, { rack: movement.rack, netStock: delta });
+      }
+    }
+
+    // Return unique racks with their calculated stock for this line (only those with stock > 0)
+    const racksWithStock = Array.from(rackStockMap.values())
+      .filter(({ netStock }) => netStock > 0)
+      .map(({ rack, netStock }) => ({ ...rack, currentStock: netStock }));
+
+    res.json(racksWithStock);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error fetching rack movements for item" });
