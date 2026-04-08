@@ -238,3 +238,58 @@ export const adminUpdateUser = async (req: Request, res: Response): Promise<void
   }
 };
 
+// ─── SUPER_ADMIN: create any user (any systemRole) ────────────────────────────
+export const adminCreateUser = async (req: Request, res: Response): Promise<void> => {
+  const { username, password, name, phone, email, systemRole } = req.body;
+
+  if (!username || !password) {
+    res.status(400).json({ error: "username and password are required" });
+    return;
+  }
+  if (password.length < 6) {
+    res.status(400).json({ error: "password must be at least 6 characters" });
+    return;
+  }
+  const validRoles = ["SUPER_ADMIN", "SUBSCRIBER", "USER"];
+  const role = systemRole && validRoles.includes(systemRole) ? systemRole : "USER";
+
+  try {
+    const existing = await prisma.user.findUnique({ where: { username } });
+    if (existing) {
+      res.status(409).json({ error: "Username already taken" });
+      return;
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: {
+        username,
+        password: hash,
+        name,
+        phone,
+        email,
+        systemRole: role,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        phone: true,
+        email: true,
+        systemRole: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json(user);
+  } catch (error: any) {
+    if (error.code === "P2002") {
+      res.status(409).json({ error: "Username or email already exists" });
+      return;
+    }
+    res.status(500).json({ error: "Failed to create user" });
+  }
+};
+

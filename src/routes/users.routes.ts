@@ -7,12 +7,14 @@ import {
     updateUser,
     toggleUserActive,
     adminUpdateUser,
+    adminCreateUser,
 } from "../controllers/users.controller";
 
 const router = Router();
 
-// SUPER_ADMIN: view all users / update any user
+// SUPER_ADMIN: view all users / create any user / update any user
 router.get("/", requireSystemRole(["SUPER_ADMIN"]), getUsers);
+router.post("/admin", requireSystemRole(["SUPER_ADMIN"]), adminCreateUser);
 router.put("/admin/:id", requireSystemRole(["SUPER_ADMIN"]), adminUpdateUser);
 
 // SUBSCRIBER: manage their own created users
