@@ -23,18 +23,79 @@ export async function seedDatabase() {
         },
     });
 
-    // ── 2. Subscription plan ─────────────────────────────────────────────────
-    const plan = await prisma.subscriptionPlan.create({
-        data: {
-            name: "Standard",
-            description: "Standard cold-storage plan",
-            pricePerMonth: 1000,
-            maxStores: 2,
-            maxUsersPerStore: 10,
-            durationDays: 365,
-            isActive: true,
-        },
+    // ── 2. Subscription plans ─────────────────────────────────────────────────
+    await prisma.subscriptionPlan.createMany({
+        data: [
+            // Free Trial (used by self-signup)
+            {
+                name: "Free Trial",
+                description: "7-day free trial for new accounts",
+                pricePerMonth: 0,
+                maxStores: 1,
+                maxUsersPerStore: 3,
+                durationDays: 7,
+                isActive: true,
+            },
+            // Online SaaS plans
+            {
+                name: "Silver",
+                description: "For small cold stores getting started",
+                pricePerMonth: 999,
+                maxStores: 1,
+                maxUsersPerStore: 3,
+                durationDays: 30,
+                isActive: true,
+            },
+            {
+                name: "Gold",
+                description: "For growing businesses",
+                pricePerMonth: 1250,
+                maxStores: 3,
+                maxUsersPerStore: 10,
+                durationDays: 30,
+                isActive: true,
+            },
+            {
+                name: "Platinum",
+                description: "For large operations & chains",
+                pricePerMonth: 2100,
+                maxStores: 9999,
+                maxUsersPerStore: 9999,
+                durationDays: 30,
+                isActive: true,
+            },
+            // Offline one-time plans
+            {
+                name: "Offline Basic",
+                description: "One-time license — 1 cold store, 1 computer installation",
+                pricePerMonth: 0,
+                maxStores: 1,
+                maxUsersPerStore: 3,
+                durationDays: 36500, // ~100 years (lifetime)
+                isActive: true,
+            },
+            {
+                name: "Offline Business",
+                description: "One-time license — 3 cold stores, free installation",
+                pricePerMonth: 0,
+                maxStores: 3,
+                maxUsersPerStore: 10,
+                durationDays: 36500,
+                isActive: true,
+            },
+            {
+                name: "Offline Enterprise",
+                description: "One-time license — unlimited stores, LAN + multi-system setup",
+                pricePerMonth: 0,
+                maxStores: 9999,
+                maxUsersPerStore: 9999,
+                durationDays: 36500,
+                isActive: true,
+            },
+        ],
     });
+
+    const plan = await prisma.subscriptionPlan.findFirstOrThrow({ where: { name: "Gold" } });
 
 
     // ── 3. Subscriber user ───────────────────────────────────────────────────

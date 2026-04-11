@@ -5,6 +5,117 @@ import { prisma } from "../prisma/prisma";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 
+// ─── Free-trial plan name (created by seed) ──────────────────────────────────
+const FREE_TRIAL_PLAN_NAME = "Free Trial";
+const FREE_TRIAL_DAYS = 7;
+
+export const register = async (req: Request, res: Response): Promise<void> => {
+  const { username, password, name, email, phone } = req.body;
+
+  if (!username || !password) {
+    res.status(400).json({ error: "username and password are required" });
+    return;
+  }
+
+  if (password.length < 6) {
+    res.status(400).json({ error: "password must be at least 6 characters" });
+    return;
+  }
+
+  // Validate username format (alphanumeric + underscore only)
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    res.status(400).json({ error: "username can only contain letters, numbers, and underscores" });
+    return;
+  }
+
+  try {
+    // Check duplicate username
+    const existing = await prisma.user.findUnique({ where: { username } });
+    if (existing) {
+      res.status(409).json({ error: "Username already taken" });
+      return;
+    }
+
+    // Check duplicate email (if provided)
+    if (email) {
+      const emailTaken = await prisma.user.findUnique({ where: { email } });
+      if (emailTaken) {
+        res.status(409).json({ error: "Email already in use" });
+        return;
+      }
+    }
+
+    // Find or create the free trial plan
+    let trialPlan = await prisma.subscriptionPlan.findFirst({
+      where: { name: FREE_TRIAL_PLAN_NAME, isActive: true },
+    });
+
+    if (!trialPlan) {
+      // Create it on-demand if not seeded yet
+      trialPlan = await prisma.subscriptionPlan.create({
+        data: {
+          name: FREE_TRIAL_PLAN_NAME,
+          description: "7-day free trial for new accounts",
+          pricePerMonth: 0,
+          maxStores: 1,
+          maxUsersPerStore: 3,
+          durationDays: FREE_TRIAL_DAYS,
+          isActive: true,
+        },
+      });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        username,
+        password: hash,
+        name: name || null,
+        email: email || null,
+        phone: phone || null,
+        systemRole: "SUBSCRIBER",
+        isActive: true,
+      },
+    });
+
+    // Create 7-day trial subscription
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + FREE_TRIAL_DAYS);
+
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        planId: trialPlan.id,
+        status: "ACTIVE",
+        startDate,
+        endDate,
+        notes: "Free 7-day trial",
+      },
+    });
+
+    const token = jwt.sign(
+      { sub: user.id, username: user.username, systemRole: user.systemRole },
+      JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        systemRole: user.systemRole,
+        lastLogin: new Date(),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Registration failed" });
+  }
+};
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { username, password } = req.body;
   if (!username || !password) {
