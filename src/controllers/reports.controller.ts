@@ -66,7 +66,31 @@ function pdfConfig(
 // ═══════════════════════════════════════════════════════════════════════════════
 export const storeSummaryReport = async (req: Request, res: Response): Promise<void> => {
     try {
+        // Build a where-clause so each role only sees its own stores
+        let storeWhere: any = {};
+        if (req.user?.systemRole === "SUBSCRIBER") {
+            // SUBSCRIBER: only stores linked to their subscription
+            const subscription = await prisma.subscription.findUnique({
+                where: { userId: req.user.id },
+                select: { id: true },
+            });
+            if (!subscription) {
+                res.status(403).json({ error: "No active subscription found" });
+                return;
+            }
+            storeWhere = { subscriptionId: subscription.id };
+        } else if (req.user?.systemRole === "USER") {
+            // USER: only stores they have been granted access to
+            const storeUsers = await prisma.storeUser.findMany({
+                where: { userId: req.user.id, isActive: true },
+                select: { storeId: true },
+            });
+            storeWhere = { id: { in: storeUsers.map((su) => su.storeId) } };
+        }
+        // SUPER_ADMIN: storeWhere stays {}, so all stores are returned
+
         const stores = await prisma.coldStore.findMany({
+            where: storeWhere,
             include: {
                 rooms: { include: { racks: true } },
                 subscription: {
@@ -117,8 +141,12 @@ export const storeSummaryReport = async (req: Request, res: Response): Promise<v
             monthlyRevenue: rows.reduce((s, r) => s + r.monthlyRevenue, 0),
         };
 
+        const subtitle = req.user?.systemRole === "SUPER_ADMIN"
+            ? "Overview of All Cold Stores"
+            : "Overview of Your Cold Stores";
+
         const pdfGen = createPDFGenerator(
-            pdfConfig("Store Summary Report", "Overview of All Cold Stores", {
+            pdfConfig("Store Summary Report", subtitle, {
                 "Total Stores": stores.length,
                 "Generated": dayjs().format("DD MMM YYYY"),
             }, "landscape", "A4")

@@ -36,7 +36,12 @@ export const index = async (req: Request, res: Response) => {
       ...(q ? {
         OR: [
           { contractCode: { contains: q, mode: "insensitive" } },
-          { farmer: { name: { contains: q, mode: "insensitive" }, mobile: { contains: q, mode: "insensitive" } } },
+          { notes: { contains: q, mode: "insensitive" } },
+          { fbrInvoiceNumber: { contains: q, mode: "insensitive" } },
+          { farmer: { name: { contains: q, mode: "insensitive" } } },
+          { farmer: { phone: { contains: q, mode: "insensitive" } } },
+          { farmer: { cnic: { contains: q, mode: "insensitive" } } },
+          { farmer: { marka: { contains: q, mode: "insensitive" } } },
         ],
       } : {}),
     };
@@ -67,7 +72,7 @@ export const index = async (req: Request, res: Response) => {
           },
         },
         where: whereClause,
-        orderBy: { id: "desc" },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.contract.count({ where: whereClause }),
     ]);
