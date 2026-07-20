@@ -64,7 +64,20 @@ export const show = async (req: Request, res: Response) => {
         },
         contracts: {
           include: {
-            items: true,
+            items: {
+              include: {
+                item: true,
+                movements: {
+                  include: {
+                    rack: {
+                      include: {
+                        room: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },

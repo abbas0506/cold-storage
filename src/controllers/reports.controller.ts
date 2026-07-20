@@ -1655,17 +1655,22 @@ export const farmerStatementReport = async (req: Request, res: Response): Promis
 export const farmerContractsReport = async (req: Request, res: Response): Promise<void> => {
     try {
         const farmerId = Number(req.params.farmerId);
-        const { status } = req.query;
+        const { status, from, to } = req.query;
 
         const farmer = await prisma.farmer.findUnique({ where: { id: farmerId } });
         if (!farmer) { res.status(404).json({ message: "Farmer not found" }); return; }
 
         const store = await prisma.coldStore.findUnique({ where: { id: farmer.storeId } });
 
+        const dateFilter: any = {};
+        if (from) dateFilter.gte = dayjs(from as string).startOf('day').toDate();
+        if (to) dateFilter.lte = dayjs(to as string).endOf('day').toDate();
+
         const contracts = await prisma.contract.findMany({
             where: {
                 farmerId,
                 ...(status ? { status: status as any } : {}),
+                ...(from || to ? { startDate: dateFilter } : {}),
             },
             include: {
                 items: {
@@ -1689,7 +1694,7 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
                 margins: { top: 10, bottom: 10, left: 20, right: 20 },
             },
             header: {
-                title: "Farmer Contracts Detail",
+                title: "Farmer Contracts Detail (Rooms & Racks)",
                 subtitle: `Farmer: ${farmer.name} | Phone: ${farmer.phone}`,
                 logo: { path: logoPath, width: 60, height: 60 },
                 companyName: store?.name || undefined,
@@ -1702,11 +1707,13 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
                     "Total Contracts": contracts.length,
                     "Active": contracts.filter((c) => c.status === "ACTIVE").length,
                     "Completed": contracts.filter((c) => c.status === "COMPLETED").length,
+                    ...(from ? { "From Date": fmtDate(from) } : {}),
+                    ...(to ? { "To Date": fmtDate(to) } : {}),
                 },
             },
             footer: {
                 leftText: store?.name || "Cold Storage System",
-                centerText: "Farmer Contracts",
+                centerText: "Farmer Contracts with Rooms & Racks",
                 showPageNumber: true,
                 font: { size: 8, color: "#666666" },
             },
@@ -1809,6 +1816,52 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
                 { text: fmtCurrency(itemRows.reduce((s, r) => s + r.lateCharges, 0)), align: { x: "right", y: "center" } },
             ]);
             itemTable.end();
+
+            // Rooms & Racks Storage Allocations
+            pdfGen.moveDown(0.3);
+            doc.fontSize(10).fillColor("#1565c0").text("Room & Rack Allocations");
+            pdfGen.moveDown(0.2);
+            doc.fontSize(8.5).fillColor("#333333");
+
+            const locationRows: Array<{ item: string; room: string; rack: string; type: string; qty: number; date: string }> = [];
+            c.items.forEach((line) => {
+                line.movements.forEach((m) => {
+                    locationRows.push({
+                        item: line.item?.name || "N/A",
+                        room: m.rack?.room?.name || "Unassigned Room",
+                        rack: m.rack?.name || "Unassigned Rack",
+                        type: m.movementType,
+                        qty: m.quantity,
+                        date: fmtDate(m.movementDate),
+                    });
+                });
+            });
+
+            if (locationRows.length === 0) {
+                doc.fontSize(8).fillColor("#666666").text("No room/rack stock movements recorded for this contract.");
+            } else {
+                doc.x = doc.page.margins.left;
+                const locTable = doc.table({ columnStyles: ["*", "*", "*", 40, 50, 80] });
+                locTable.row([
+                    { text: "Item", align: { x: "left", y: "center" } },
+                    { text: "Room", align: { x: "left", y: "center" } },
+                    { text: "Rack", align: { x: "left", y: "center" } },
+                    { text: "Type", align: { x: "center", y: "center" } },
+                    { text: "Qty", align: { x: "right", y: "center" } },
+                    { text: "Movement Date", align: { x: "center", y: "center" } },
+                ]);
+                locationRows.forEach((r) => {
+                    locTable.row([
+                        r.item,
+                        r.room,
+                        r.rack,
+                        { text: r.type, align: { x: "center", y: "center" } },
+                        { text: String(r.qty), align: { x: "right", y: "center" } },
+                        { text: r.date, align: { x: "center", y: "center" } },
+                    ]);
+                });
+                locTable.end();
+            }
 
             if (c.notes) {
                 pdfGen.moveDown(0.3);
