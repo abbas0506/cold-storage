@@ -1764,9 +1764,10 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
             const itemRows = c.items.map((line, li) => {
                 const totalIn = line.movements.filter((m) => m.movementType === "IN").reduce((s, m) => s + m.quantity, 0);
                 const totalOut = line.movements.filter((m) => m.movementType === "OUT").reduce((s, m) => s + m.quantity, 0);
+                const itemName = line.item?.name || (line.packagingType ? `${line.packagingType} Item` : "Storage Item");
                 return {
                     sno: li + 1,
-                    item: line.item?.name || "N/A",
+                    item: itemName,
                     packaging: line.packagingType || "N/A",
                     quantity: line.quantity || 0,
                     unitRate: line.unitRate,
@@ -1825,9 +1826,10 @@ export const farmerContractsReport = async (req: Request, res: Response): Promis
 
             const locationRows: Array<{ item: string; room: string; rack: string; type: string; qty: number; date: string }> = [];
             c.items.forEach((line) => {
+                const lineItemName = line.item?.name || (line.packagingType ? `${line.packagingType} Item` : "Storage Item");
                 line.movements.forEach((m) => {
                     locationRows.push({
-                        item: line.item?.name || "N/A",
+                        item: lineItemName,
                         room: m.rack?.room?.name || "Unassigned Room",
                         rack: m.rack?.name || "Unassigned Rack",
                         type: m.movementType,
